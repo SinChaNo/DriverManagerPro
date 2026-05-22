@@ -80,27 +80,45 @@ def _normalize_installed_version(installed_ver: str, latest_ver: str, vendor: st
 
 
 def _hardware_ids_match(device_hwids: list[str], driver_hwids: list[str]) -> bool:
-    """기기 HardwareID 목록과 드라이버 HardwareID 목록 간 일치 여부를 반환한다."""
+    """기기 HardwareID 목록과 드라이버 HardwareID 목록 간 일치 여부를 반환한다.
+
+    지원 형식:
+      - PCI: VEN_XXXX&DEV_XXXX (완전/부분 일치)
+      - PCI: VEN_XXXX (VEN-only, 벤더 전체 대상)
+      - USB: VID_XXXX&PID_XXXX (완전/부분 일치)
+    """
     device_upper = {h.upper() for h in device_hwids}
     for hwid in driver_hwids:
         # 완전 일치
         if hwid.upper() in device_upper:
             return True
-        # VEN+DEV 부분 일치 (드라이버가 VEN과 DEV 모두 가진 경우)
-        match = re.search(r"VEN_([0-9A-Fa-f]{4}).*DEV_([0-9A-Fa-f]{4})", hwid)
-        if match:
-            ven, dev = match.group(1).upper(), match.group(2).upper()
+
+        # PCI VEN+DEV 부분 일치
+        pci_match = re.search(r"VEN_([0-9A-Fa-f]{4}).*DEV_([0-9A-Fa-f]{4})", hwid)
+        if pci_match:
+            ven, dev = pci_match.group(1).upper(), pci_match.group(2).upper()
             for d_hwid in device_upper:
                 if f"VEN_{ven}" in d_hwid and f"DEV_{dev}" in d_hwid:
                     return True
-        else:
-            # VEN-only 매칭: 드라이버가 벤더 전체를 대상으로 하는 경우 (예: PCI\VEN_10DE)
-            ven_only = re.search(r"VEN_([0-9A-Fa-f]{4})", hwid)
-            if ven_only and "&" not in hwid:
-                ven = ven_only.group(1).upper()
-                for d_hwid in device_upper:
-                    if f"VEN_{ven}" in d_hwid:
-                        return True
+            continue
+
+        # USB VID+PID 부분 일치 (예: USB\VID_8087&PID_0026)
+        usb_match = re.search(r"VID_([0-9A-Fa-f]{4}).*PID_([0-9A-Fa-f]{4})", hwid)
+        if usb_match:
+            vid, pid = usb_match.group(1).upper(), usb_match.group(2).upper()
+            for d_hwid in device_upper:
+                if f"VID_{vid}" in d_hwid and f"PID_{pid}" in d_hwid:
+                    return True
+            continue
+
+        # VEN-only 매칭: 드라이버가 벤더 전체를 대상으로 하는 경우 (예: PCI\VEN_10DE)
+        ven_only = re.search(r"VEN_([0-9A-Fa-f]{4})", hwid)
+        if ven_only and "&" not in hwid:
+            ven = ven_only.group(1).upper()
+            for d_hwid in device_upper:
+                if f"VEN_{ven}" in d_hwid:
+                    return True
+
     return False
 
 
