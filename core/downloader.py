@@ -3,6 +3,8 @@
 수정 이력:
   2026-05-22 - Intel downloadmirror 403 오류 수정
                도메인별 Referer 헤더 자동 지정 및 완전한 User-Agent 적용
+  2026-05-22 - _download_file() 다운로드 후 0바이트 파일 검증 추가
+               (0바이트 파일 생성 후 True 반환하던 버그 수정)
 """
 
 from __future__ import annotations
@@ -155,6 +157,13 @@ def _download_file(
                         _set_state(current_bytes=downloaded, current_total=total)
                         if on_progress:
                             on_progress(downloaded, total)
+
+        # 다운로드 후 파일 크기 검증 — 0바이트는 실패로 처리
+        final_size = dest.stat().st_size if dest.exists() else 0
+        if final_size == 0:
+            logger.error("Download produced empty file (0 bytes): %s", url)
+            dest.unlink(missing_ok=True)
+            return False
         return True
     except Exception as exc:
         logger.error("Download failed (%s): %s", url, exc)

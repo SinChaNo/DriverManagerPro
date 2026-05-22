@@ -754,6 +754,24 @@ $('btnSaveSettings').addEventListener('click', async () => {
 // Expose for inline onclick
 window.closeSettings = closeSettings;
 
+// ── Resize handler ─────────────────────────────────────────────────────────────
+// 그래픽 드라이버 설치 후 해상도 변경 시 WebView2가 레이아웃을 갱신하지 않는 문제 대응.
+// display none/block 토글로 강제 리플로우를 유발한다.
+(function () {
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const b = document.body;
+      b.style.display = 'none';
+      // offsetHeight 접근으로 레이아웃 플러시 강제 실행
+      // eslint-disable-next-line no-unused-expressions
+      b.offsetHeight;
+      b.style.display = '';
+    }, 150);
+  });
+})();
+
 // ── Init ────────────────────────────────────────────────────────────────────────
 
 async function init() {

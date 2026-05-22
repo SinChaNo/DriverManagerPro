@@ -13,6 +13,8 @@ Silent driver installation via pnputil / vendor setup EXE.
                 - EXE 타임아웃 300 → 600초
                 - run_install_queue() 세션 구분선 로깅 추가
                 - 예외 발생 시 exc_info=True 로깅
+  - 2026-05-22: _download_driver() 0바이트 파일 검증 추가 (WinError 1392 예방)
+                _run_vendor_exe() MZ 헤더 검증 추가 (손상된 EXE 실행 차단)
 """
 
 from __future__ import annotations
@@ -169,6 +171,19 @@ def _run_pnputil(inf_path: Path) -> tuple[bool, str, bool]:
 
 def _run_vendor_exe(exe_path: Path, vendor: str = "") -> tuple[bool, str, bool]:
     """벤더별 사일런트 플래그를 적용하여 드라이버 EXE를 실행한다."""
+    # MZ 헤더 검증 — 0바이트 또는 손상된 파일 실행 방지 (WinError 1392 예방)
+    try:
+        with open(exe_path, "rb") as f:
+            header = f.read(2)
+        if header != b"MZ":
+            size = exe_path.stat().st_size
+            msg = f"EXE 파일이 유효하지 않습니다 (MZ 헤더 없음, {size}바이트): {exe_path.name}"
+            logger.error(msg)
+            return False, msg, False
+    except OSError as exc:
+        logger.error("EXE 파일 읽기 실패: %s", exc)
+        return False, f"EXE 파일 읽기 실패: {exc}", False
+
     silent_flags = _get_silent_flags(vendor)
     cmd = [str(exe_path)] + silent_flags
     logger.info("Vendor EXE [%s]: %s", vendor or "unknown", " ".join(cmd))
@@ -237,7 +252,14 @@ def _download_driver(url: str, dest_dir: Path, driver_name: str) -> tuple[bool, 
                     pct = int(downloaded / total_size * 100)
                     _set_progress(download_pct=pct)
 
-        logger.info("Download complete: %s (%d bytes)", dest_file.name, downloaded)
+        # 다운로드 후 파일 크기 검증 — 0바이트는 손상 파일로 간주
+        final_size = dest_file.stat().st_size if dest_file.exists() else 0
+        if final_size == 0:
+            logger.error("Download produced empty file (0 bytes): %s", url)
+            dest_file.unlink(missing_ok=True)
+            return False, "다운로드 실패: 파일 크기가 0바이트입니다 (서버 오류 또는 URL 만료)"
+
+        logger.info("Download complete: %s (%d bytes)", dest_file.name, final_size)
         return True, str(dest_file)
 
     except Exception as exc:
