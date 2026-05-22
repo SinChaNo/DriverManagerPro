@@ -7,3 +7,10 @@ dist/
 build/
 *.spec
 logs/
+
+# 드라이버 바이너리 패키지 (대용량, git 제외)
+drivers/**/*.exe
+drivers/**/*.msi
+drivers/**/*.zip
+drivers/**/*.7z
+drivers/**/*.cab
