@@ -5,6 +5,9 @@ Hardware and driver detection using WMI and pnputil.
   - 2026-05-22: WMI DeviceClass 정규화(_normalize_class, _infer_class_from_name) 추가
                 BIOS 버전 조회(get_bios_info) 및 get_system_summary에 통합
                 _detect_via_wmi에 클래스 정규화/추론 적용
+  - 2026-05-23: pnputil 한국어 로케일 필드명 매핑 추가 (_PNPUTIL_KEY_MAP)
+                _parse_pnputil_version 추가: "MM/DD/YYYY 버전" 형식에서 순수 버전 번호 추출
+                _detect_via_pnputil에 다국어 키 정규화 및 버전 파싱 적용
 """
 
 from __future__ import annotations
@@ -200,32 +203,153 @@ def _detect_gpu_wmi() -> list[DeviceInfo]:
     return devices
 
 
-def _detect_via_pnputil() -> list[DeviceInfo]:
-    """Fallback using pnputil /enum-drivers."""
+# pnputil /enum-drivers 필드명 정규화: 영어/한국어 로케일 모두 지원
+_PNPUTIL_DRIVERS_KEY_MAP: dict[str, str] = {
+    "Published Name": "Published Name",
+    "Original Name": "Original Name",
+    "Provider Name": "Provider Name",
+    "Class Name": "Class Name",
+    "Driver Version": "Driver Version",
+    # 한국어
+    "게시된 이름": "Published Name",
+    "원래 이름": "Original Name",
+    "공급자 이름": "Provider Name",
+    "클래스 이름": "Class Name",
+    "드라이버 버전": "Driver Version",
+}
+
+# pnputil /enum-devices /ids 필드명 정규화: 영어/한국어 로케일 모두 지원
+_PNPUTIL_DEVICES_KEY_MAP: dict[str, str] = {
+    "Instance ID": "Instance ID",
+    "Device Description": "Device Description",
+    "Class Name": "Class Name",
+    "Class GUID": "Class GUID",
+    "Manufacturer Name": "Manufacturer Name",
+    "Status": "Status",
+    "Driver Name": "Driver Name",
+    "Hardware IDs": "Hardware IDs",
+    "Compatible IDs": "Compatible IDs",
+    # 한국어
+    "인스턴스 ID": "Instance ID",
+    "장치 설명": "Device Description",
+    "클래스 이름": "Class Name",
+    "클래스 GUID": "Class GUID",
+    "제조업체 이름": "Manufacturer Name",
+    "상태": "Status",
+    "드라이버 이름": "Driver Name",
+    "하드웨어 ID": "Hardware IDs",
+    "호환 가능 ID": "Compatible IDs",
+}
+
+
+def _parse_pnputil_version(raw: str) -> str:
+    """pnputil Driver Version 필드에서 순수 버전 번호를 추출한다.
+
+    pnputil은 'MM/DD/YYYY VersionNumber' 형식으로 반환한다.
+    슬래시가 포함된 날짜 토큰을 건너뛰고 숫자·점만으로 구성된 토큰을 반환한다.
+    """
+    if not raw:
+        return "0.0.0.0"
+    for token in raw.strip().split():
+        # 숫자와 점만으로 구성된 토큰이 버전 번호
+        if re.match(r"^\d[\d.]*$", token):
+            return token
+    return "0.0.0.0"
+
+
+def _build_pnputil_version_map() -> dict[str, str]:
+    """pnputil /enum-drivers로 {oem#.inf: version} 버전 맵을 빌드한다."""
     output = _run(["pnputil", "/enum-drivers"])
-    devices: list[DeviceInfo] = []
+    result: dict[str, str] = {}
     current: dict[str, str] = {}
 
     for line in output.splitlines():
         line = line.strip()
         if not line:
             if current:
-                dev = DeviceInfo(
-                    device_name=current.get("Original Name", current.get("Published Name", "Unknown")),
-                    vendor_id="",
-                    device_id="",
-                    driver_version=_parse_version(current.get("Driver Version", "")),
-                    driver_date="",
-                    device_class=current.get("Class Name", ""),
-                    inf_name=current.get("Published Name", ""),
-                    manufacturer=current.get("Provider Name", ""),
-                )
-                devices.append(dev)
+                pub_name = current.get("Published Name", "")
+                ver = _parse_pnputil_version(current.get("Driver Version", ""))
+                if pub_name:
+                    result[pub_name] = ver
                 current = {}
             continue
         if ":" in line:
             key, _, val = line.partition(":")
-            current[key.strip()] = val.strip()
+            normalized_key = _PNPUTIL_DRIVERS_KEY_MAP.get(key.strip(), key.strip())
+            current[normalized_key] = val.strip()
+
+    return result
+
+
+def _detect_via_pnputil() -> list[DeviceInfo]:
+    """Fallback: pnputil /enum-devices /ids와 /enum-drivers를 사용해 장치 목록을 수집한다.
+
+    /enum-devices /ids: 실제 장치명, Hardware ID, 클래스, 제조사 정보
+    /enum-drivers: oem#.inf별 드라이버 버전 정보
+    두 결과를 Driver Name(oem#.inf)으로 조인한다.
+    """
+    # 버전 맵 먼저 구축 {oem#.inf → version}
+    version_map = _build_pnputil_version_map()
+
+    output = _run(["pnputil", "/enum-devices", "/ids"])
+    devices: list[DeviceInfo] = []
+    current: dict[str, str] = {}
+    hwids: list[str] = []
+    last_key: str = ""
+
+    def _flush() -> None:
+        """현재 블록을 DeviceInfo로 변환하여 devices 리스트에 추가한다."""
+        if not current:
+            return
+        driver_name = current.get("Driver Name", "")
+        version = version_map.get(driver_name, "0.0.0.0")
+        class_raw = current.get("Class Name", "")
+        normalized_class = _normalize_class(class_raw)
+        if not normalized_class:
+            # 정규화 실패 시 원본 클래스명 유지
+            normalized_class = class_raw
+        primary_hwid = hwids[0] if hwids else ""
+        dev = DeviceInfo(
+            device_name=current.get("Device Description", "Unknown Device"),
+            vendor_id=_extract_id(primary_hwid, "VEN_", "VID_"),
+            device_id=_extract_id(primary_hwid, "DEV_", "PID_"),
+            driver_version=version,
+            driver_date="",
+            device_class=normalized_class,
+            inf_name=driver_name,
+            hardware_ids=hwids[:],
+            manufacturer=current.get("Manufacturer Name", ""),
+        )
+        devices.append(dev)
+
+    for line in output.splitlines():
+        # 들여쓰기로 시작하는 라인 = 이전 필드의 연속값 (Hardware IDs 등)
+        if line and line[0] == " ":
+            val = line.strip()
+            if val and last_key == "Hardware IDs":
+                hwids.append(val)
+            continue
+
+        stripped = line.strip()
+        if not stripped:
+            _flush()
+            current = {}
+            hwids = []
+            last_key = ""
+            continue
+
+        if ":" in stripped:
+            key, _, val = stripped.partition(":")
+            normalized_key = _PNPUTIL_DEVICES_KEY_MAP.get(key.strip(), key.strip())
+            val = val.strip()
+            current[normalized_key] = val
+            last_key = normalized_key
+            # Hardware IDs 첫 번째 값은 키와 같은 라인에 있음
+            if normalized_key == "Hardware IDs" and val:
+                hwids.append(val)
+
+    # 마지막 블록 처리 (출력 끝에 빈 줄이 없을 경우 대비)
+    _flush()
 
     return devices
 
