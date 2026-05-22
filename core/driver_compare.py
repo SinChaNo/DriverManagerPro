@@ -3,6 +3,9 @@ Compare installed driver versions against manifest entries.
 
 수정 이력:
   - 2026-05-22: device_class가 빈 값일 때 manifest의 class 필드를 fallback으로 사용하도록 수정
+  - 2026-05-22: NVIDIA 버전 형식 정규화 추가 (Windows 4-part → NVIDIA 2-part 변환)
+               _hardware_ids_match에 VEN-only HWID 매칭 추가
+               퍼지 매칭 키워드에서 "intel" 제거 (과다 매칭 방지)
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from core.logger import logger
 
 
 def _parse_version(version_str: str) -> tuple[int, ...]:
-    """Convert version string to comparable int tuple."""
+    """버전 문자열을 비교 가능한 int 튜플로 변환한다."""
     cleaned = re.sub(r"[^\d.]", "", version_str.strip())
     parts = cleaned.split(".")
     result: list[int] = []
@@ -39,19 +42,65 @@ def version_eq(a: str, b: str) -> bool:
     return _parse_version(a) == _parse_version(b)
 
 
+def _nvidia_win_to_nvidia_ver(win_ver: str) -> Optional[str]:
+    """Windows 4-part NVIDIA 드라이버 버전을 NVIDIA 표기 버전으로 변환한다.
+
+    예: '32.0.15.7283' → '572.83'
+    변환 공식: major = (parts[2] % 10) * 100 + parts[3] // 100
+              minor = parts[3] % 100
+    """
+    parts = win_ver.split(".")
+    if len(parts) != 4:
+        return None
+    try:
+        p2, p3 = int(parts[2]), int(parts[3])
+        major = (p2 % 10) * 100 + p3 // 100
+        minor = p3 % 100
+        return f"{major}.{minor:02d}"
+    except ValueError:
+        return None
+
+
+def _normalize_installed_version(installed_ver: str, latest_ver: str, vendor: str) -> str:
+    """설치된 버전을 manifest 버전 형식에 맞게 정규화한다.
+
+    NVIDIA는 WMI가 Windows 4-part 형식(32.0.15.7283)을 반환하지만
+    manifest는 NVIDIA 2-part 형식(572.83)으로 저장한다.
+    manifest가 2-part이고 installed가 4-part인 NVIDIA 드라이버의 경우 변환한다.
+    """
+    if vendor.lower() != "nvidia":
+        return installed_ver
+    latest_parts = latest_ver.split(".")
+    installed_parts = installed_ver.split(".")
+    if len(latest_parts) == 2 and len(installed_parts) == 4:
+        converted = _nvidia_win_to_nvidia_ver(installed_ver)
+        if converted:
+            return converted
+    return installed_ver
+
+
 def _hardware_ids_match(device_hwids: list[str], driver_hwids: list[str]) -> bool:
-    """Check if any hardware ID from device matches driver's hardware ID list."""
+    """기기 HardwareID 목록과 드라이버 HardwareID 목록 간 일치 여부를 반환한다."""
     device_upper = {h.upper() for h in device_hwids}
     for hwid in driver_hwids:
+        # 완전 일치
         if hwid.upper() in device_upper:
             return True
-        # Partial match on VEN+DEV
+        # VEN+DEV 부분 일치 (드라이버가 VEN과 DEV 모두 가진 경우)
         match = re.search(r"VEN_([0-9A-Fa-f]{4}).*DEV_([0-9A-Fa-f]{4})", hwid)
         if match:
             ven, dev = match.group(1).upper(), match.group(2).upper()
             for d_hwid in device_upper:
                 if f"VEN_{ven}" in d_hwid and f"DEV_{dev}" in d_hwid:
                     return True
+        else:
+            # VEN-only 매칭: 드라이버가 벤더 전체를 대상으로 하는 경우 (예: PCI\VEN_10DE)
+            ven_only = re.search(r"VEN_([0-9A-Fa-f]{4})", hwid)
+            if ven_only and "&" not in hwid:
+                ven = ven_only.group(1).upper()
+                for d_hwid in device_upper:
+                    if f"VEN_{ven}" in d_hwid:
+                        return True
     return False
 
 
@@ -90,12 +139,13 @@ def compare_device_to_manifest(device: dict, manifest: dict) -> Optional[dict]:
             matched = _class_matches(device_class, driver_class)
 
         if not matched:
-            # Name-based fuzzy fallback
+            # 이름 기반 퍼지 매칭 (HWID 매칭 실패 시 fallback)
+            # "intel"은 칩셋/ME/WiFi 등 모든 Intel 기기에 과다 매칭되므로 제외
             driver_name_lower = driver_entry.get("name", "").lower()
             device_name_lower = device_name.lower()
             vendor = driver_entry.get("vendor", "").lower()
             if vendor and vendor in device_name_lower:
-                for kw in ["geforce", "radeon", "intel", "realtek", "bluetooth", "wi-fi", "wifi", "audio", "lan"]:
+                for kw in ["geforce", "radeon", "realtek", "bluetooth", "wi-fi", "wifi", "audio", "lan"]:
                     if kw in driver_name_lower and kw in device_name_lower:
                         matched = True
                         break
@@ -109,8 +159,11 @@ def compare_device_to_manifest(device: dict, manifest: dict) -> Optional[dict]:
 
         latest_version_entry = versions[0]
         latest_version = latest_version_entry.get("version", "0.0.0.0")
+        vendor_name = driver_entry.get("vendor", "")
 
-        update_available = version_gt(latest_version, installed_version)
+        # 벤더별 버전 형식 정규화 후 비교 (예: NVIDIA Windows 4-part → NVIDIA 2-part)
+        normalized_installed = _normalize_installed_version(installed_version, latest_version, vendor_name)
+        update_available = version_gt(latest_version, normalized_installed)
 
         # device_class가 비어있으면 manifest의 class를 fallback으로 사용
         final_class = device_class if device_class else driver_entry.get("class", "Other")
@@ -118,10 +171,10 @@ def compare_device_to_manifest(device: dict, manifest: dict) -> Optional[dict]:
         return {
             "driver_id": driver_entry.get("id"),
             "driver_name": driver_entry.get("name"),
-            "vendor": driver_entry.get("vendor"),
+            "vendor": vendor_name,
             "device_name": device_name,
             "device_class": final_class,
-            "installed_version": installed_version,
+            "installed_version": normalized_installed,
             "latest_bundled": latest_version,
             "latest_path": latest_version_entry.get("path", ""),
             "latest_inf": latest_version_entry.get("inf", ""),
