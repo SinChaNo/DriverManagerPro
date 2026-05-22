@@ -1,4 +1,9 @@
-"""Online driver download logic — supports vendor direct URLs and custom CDN."""
+"""Online driver download logic — supports vendor direct URLs and custom CDN.
+
+수정 이력:
+  2026-05-22 - Intel downloadmirror 403 오류 수정
+               도메인별 Referer 헤더 자동 지정 및 완전한 User-Agent 적용
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ import sys
 import threading
 from pathlib import Path
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 from core.logger import logger
 
@@ -54,6 +60,38 @@ def get_download_state() -> dict:
 def _set_state(**kwargs) -> None:
     with _state_lock:
         _download_state.update(kwargs)
+
+
+# 다운로드 도메인별 Referer 매핑 — 403 차단 우회에 필요한 벤더 정책 반영
+_REFERER_MAP: dict[str, str] = {
+    "downloadmirror.intel.com": "https://www.intel.com/",
+    "download.intel.com":       "https://www.intel.com/",
+    "us.download.nvidia.com":   "https://www.nvidia.com/",
+    "international.download.nvidia.com": "https://www.nvidia.com/",
+    "drivers.amd.com":          "https://www.amd.com/",
+    "www.realtek.com":          "https://www.realtek.com/",
+}
+
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+def _build_request_headers(url: str) -> dict[str, str]:
+    """URL 도메인에 맞는 HTTP 요청 헤더를 반환한다."""
+    domain = urlparse(url).netloc.lower()
+    referer = _REFERER_MAP.get(domain, "")
+    headers: dict[str, str] = {
+        "User-Agent": _USER_AGENT,
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Connection": "keep-alive",
+    }
+    if referer:
+        headers["Referer"] = referer
+    return headers
 
 
 def check_connectivity(test_url: str = "https://www.google.com") -> bool:
@@ -104,7 +142,7 @@ def _download_file(
         return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        headers = _build_request_headers(url)
         with requests.get(url, stream=True, timeout=120, headers=headers) as resp:
             resp.raise_for_status()
             total = int(resp.headers.get("content-length", 0))
