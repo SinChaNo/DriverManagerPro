@@ -278,7 +278,8 @@ def main() -> None:
     )
 
     logger.info("Launching UI window...")
-    webview.start(debug=False)
+    # pythonnet 없이 동작하는 EdgeChromium(WebView2) 백엔드 명시
+    webview.start(gui="edgechromium", debug=False)
 
 
 if __name__ == "__main__":
