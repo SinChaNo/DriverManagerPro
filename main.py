@@ -1,4 +1,9 @@
-"""Driver Manager Pro — Entry point."""
+"""Driver Manager Pro — Entry point.
+
+수정 이력:
+  2026-05-22 - onefile EXE 실행 시 UI 경로 오류 수정
+               sys._MEIPASS(내장 리소스)와 EXE 폴더(쓰기 데이터)를 분리
+"""
 
 from __future__ import annotations
 
@@ -9,12 +14,26 @@ from pathlib import Path
 
 
 def get_base_dir() -> Path:
+    """쓰기 가능한 앱 데이터 경로 반환 (config, drivers, logs 등)."""
     if getattr(sys, "frozen", False):
+        # onefile/onedir 모두 EXE 옆 폴더를 데이터 루트로 사용
         return Path(sys.executable).parent
     return Path(__file__).parent
 
 
+def get_resource_dir() -> Path:
+    """읽기 전용 내장 리소스 경로 반환 (ui, 번들 manifest 등).
+
+    onefile 빌드 시 PyInstaller는 리소스를 sys._MEIPASS 임시 폴더에 압축 해제한다.
+    onedir 빌드나 소스 실행 시에는 BASE_DIR과 동일하다.
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
+
+
 BASE_DIR = get_base_dir()
+RESOURCE_DIR = get_resource_dir()
 
 # Ensure core is importable when running from source
 if str(BASE_DIR) not in sys.path:
@@ -211,15 +230,19 @@ class API:
         return check_connectivity()
 
     def get_app_version(self) -> str:
-        try:
-            with open(BASE_DIR / "config" / "app_version.json", encoding="utf-8") as f:
-                return json.load(f).get("version", "1.0.0")
-        except Exception:
-            return "1.0.0"
+        # EXE 옆 config를 우선 확인하고, 없으면 번들 내장 파일 사용
+        for base in (BASE_DIR, RESOURCE_DIR):
+            try:
+                with open(base / "config" / "app_version.json", encoding="utf-8") as f:
+                    return json.load(f).get("version", "1.0.0")
+            except Exception:
+                continue
+        return "1.0.0"
 
 
 def _find_ui() -> Path:
-    ui_path = BASE_DIR / "ui" / "index.html"
+    """번들 내장 UI 파일 경로 반환 (RESOURCE_DIR 기준)."""
+    ui_path = RESOURCE_DIR / "ui" / "index.html"
     if not ui_path.exists():
         raise FileNotFoundError(f"UI not found at {ui_path}")
     return ui_path
