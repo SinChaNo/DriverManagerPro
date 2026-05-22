@@ -125,6 +125,7 @@ def compare_device_to_manifest(device: dict, manifest: dict) -> Optional[dict]:
             "latest_bundled": latest_version,
             "latest_path": latest_version_entry.get("path", ""),
             "latest_inf": latest_version_entry.get("inf", ""),
+            "download_url": latest_version_entry.get("download_url", ""),
             "update_available": update_available,
             "all_versions": [v.get("version") for v in versions],
         }

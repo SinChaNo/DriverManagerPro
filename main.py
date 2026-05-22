@@ -109,14 +109,29 @@ class API:
     def start_install(self, driver_ids: list) -> None:
         logger.info("API: start_install(%s)", driver_ids)
         try:
+            settings = _load_settings()
+            # manifest.json이 위치한 폴더 이름 (기본값: "drivers")
+            download_path = settings.get("download_path", "drivers")
+
             manifest = load_manifest(_manifest_path())
             devices = scan_hardware()
             all_updates = get_update_list(devices, manifest)
 
             if driver_ids:
-                queue = [d for d in all_updates if d.get("driver_id") in driver_ids]
+                raw_queue = [d for d in all_updates if d.get("driver_id") in driver_ids]
             else:
-                queue = [d for d in all_updates if d.get("update_available")]
+                raw_queue = [d for d in all_updates if d.get("update_available")]
+
+            # latest_path에 download_path 프리픽스 추가
+            # manifest path 예: "nvidia/geforce/desktop/v572.83"
+            # 실제 경로 필요: "drivers/nvidia/geforce/desktop/v572.83"
+            queue = []
+            for item in raw_queue:
+                d = dict(item)
+                raw = d.get("latest_path", "")
+                if raw:
+                    d["latest_path"] = str(Path(download_path) / raw)
+                queue.append(d)
 
             def _run():
                 run_install_queue(queue)

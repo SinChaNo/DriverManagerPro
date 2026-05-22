@@ -462,13 +462,24 @@ function startInstallPoll() {
     $('instRingFill').style.strokeDashoffset = RING_CIRC * (1 - pct / 100);
     $('instCount').textContent = `${progress.installed} / ${progress.total}`;
 
-    // Current op
+    // Current op — stage별 표시 분기 (downloading | installing)
     if (progress.current_driver) {
       $('opName').textContent = progress.current_driver;
-      $('opMeta').textContent = `설치 진행 중... (${progress.installed + 1}/${progress.total})`;
-      $('opBar').style.width = Math.min(pct + 10, 95) + '%';
 
-      // Mark queue items
+      if (progress.stage === 'downloading') {
+        const dlPct = progress.download_pct || 0;
+        $('opMeta').textContent = `다운로드 중... ${dlPct}%`;
+        $('opBar').style.width = dlPct + '%';
+        $('opStageLabel').textContent = '다운로드';
+        $('opStageLabel').className = 'text-xs text-blue-400 font-medium';
+      } else {
+        $('opMeta').textContent = `설치 진행 중... (${progress.installed + 1}/${progress.total})`;
+        $('opBar').style.width = Math.min(pct + 10, 95) + '%';
+        $('opStageLabel').textContent = '설치 중';
+        $('opStageLabel').className = 'text-xs text-primary font-medium';
+      }
+
+      // 큐 아이템 상태 업데이트
       S.installQueue.forEach((q, i) => {
         if (q.driver_name === progress.current_driver || q.driver_id === progress.current_driver) {
           if (q.status !== 'done' && q.status !== 'fail') {
