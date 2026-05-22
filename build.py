@@ -180,7 +180,7 @@ def run_build(mode: str) -> None:
     if result.returncode != 0:
         print(f"[ERROR] PyInstaller failed for {mode} build (exit {result.returncode})")
         sys.exit(result.returncode)
-    print(f"  Build OK — output in {DIST}")
+    print(f"  Build OK - output in {DIST}")
 
 
 def main() -> None:
