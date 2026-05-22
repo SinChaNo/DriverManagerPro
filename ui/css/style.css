@@ -1,0 +1,185 @@
+/* Driver Manager Pro — Custom CSS */
+
+:root {
+  --primary: #135bec;
+  --bg: #0f131a;
+  --surface: #1a1f2b;
+  --bdr: #2d3544;
+  --muted: #9da6b9;
+}
+
+body { font-family: 'Space Grotesk', sans-serif; }
+
+/* View toggling — NOT Tailwind hidden (avoids !important conflict) */
+.is-hidden { display: none !important; }
+
+/* Scrollbar */
+.custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+.custom-scroll::-webkit-scrollbar-thumb { background: var(--bdr); border-radius: 3px; }
+.custom-scroll::-webkit-scrollbar-thumb:hover { background: #3d4f6a; }
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-primary:hover:not(:disabled) { background: #1a6fff; }
+.btn-primary:active:not(:disabled) { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-outline {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--bdr);
+  border-radius: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.83rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-outline:hover { border-color: var(--primary); color: #e2e8f0; }
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.icon-btn:hover { color: #fff; background: rgba(255,255,255,0.06); }
+
+/* ── Spinners ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
+
+.spinner-lg {
+  width: 48px; height: 48px;
+  border: 4px solid var(--bdr);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* ── Shimmer progress bar ── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.shimmer-bar {
+  background: linear-gradient(90deg, var(--primary) 0%, #60a5fa 40%, var(--primary) 80%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+/* ── Tree view ── */
+.tree-category summary { list-style: none; }
+.tree-category summary::-webkit-details-marker { display: none; }
+.tree-category[open] summary .chevron { transform: rotate(90deg); }
+.chevron { transition: transform 0.2s ease; }
+
+/* ── Device row ── */
+.device-row { transition: background 0.1s; }
+.device-row:hover { background: rgba(255,255,255,0.025); }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.7rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.badge-update  { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.badge-ok      { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.badge-pending { background: rgba(113,128,150,0.15); color: #9da6b9; border: 1px solid rgba(113,128,150,0.3); }
+.badge-done    { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.badge-fail    { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.badge-installing { background: rgba(19,91,236,0.15); color: #60a5fa; border: 1px solid rgba(19,91,236,0.35); }
+
+/* ── Queue item ── */
+.queue-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--bdr);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.queue-item.is-active { border-color: var(--primary); }
+.queue-item.is-done   { opacity: 0.7; }
+
+/* ── Console ── */
+.console-line { display: block; line-height: 1.5; }
+.cl-info    { color: #60a5fa; }
+.cl-warn    { color: #fbbf24; }
+.cl-error   { color: #f87171; }
+.cl-ok      { color: #4ade80; }
+.cl-default { color: #6b7280; }
+
+/* ── Settings form ── */
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-label { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+.form-input {
+  background: var(--surface);
+  border: 1px solid var(--bdr);
+  border-radius: 7px;
+  color: #e2e8f0;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-family: 'Fira Code', monospace;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.form-input:focus { border-color: var(--primary); }
+.form-input option { background: var(--surface); }
+
+/* ── System stat card ── */
+.sys-card {
+  background: var(--surface);
+  border: 1px solid var(--bdr);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color 0.15s;
+}
+.sys-card:hover { border-color: #3d4f6a; }
+
+/* ── Download file entry ── */
+.dl-file-entry {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px;
+  font-size: 0.72rem; font-family: 'Fira Code', monospace;
+}
+.dl-file-entry.is-active { background: rgba(19,91,236,0.08); }
+.dl-file-entry.is-done   { color: #4ade80; }
+.dl-file-entry.is-error  { color: #f87171; }
+
+/* ── Pulse dot ── */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.dot-online  { background: #4ade80; animation: pulse 2s infinite; }
+.dot-offline { background: #f87171; }
+.dot-unknown { background: #6b7280; }
+
+/* ── Bounce animation ── */
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.animate-bounce { animation: bounce 1s ease-in-out infinite; }

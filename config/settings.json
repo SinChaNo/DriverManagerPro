@@ -1,0 +1,8 @@
+{
+  "remote_manifest_url": "",
+  "cdn_base_url": "",
+  "keep_versions": 3,
+  "log_level": "INFO",
+  "auto_update_check": true,
+  "reboot_prompt": true
+}

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html class="dark" lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Driver Manager Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary:  '#135bec',
+            'primary-h': '#1a6fff',
+            bg:       '#0f131a',
+            surface:  '#1a1f2b',
+            bdr:      '#2d3544',
+            muted:    '#9da6b9',
+          },
+          fontFamily: {
+            display: ['Space Grotesk','sans-serif'],
+            mono:    ['Fira Code','monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+
+<body class="bg-bg text-white font-display overflow-hidden h-screen flex flex-col antialiased">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     VIEW 1 · MAIN — Driver Management
+═══════════════════════════════════════════════════════════════════ -->
+<div id="v-main" class="flex flex-col h-screen">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 py-3 border-b border-bdr bg-[#111318]/90 backdrop-blur-sm shrink-0">
+    <div class="flex items-center gap-6 flex-1">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/30">
+          <span class="material-symbols-outlined text-white text-xl">memory</span>
+        </div>
+        <div>
+          <div class="text-sm font-bold leading-tight">Driver Manager Pro</div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span id="hdrOnlineDot" class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+            <span id="hdrOnlineLabel" class="text-[10px] text-muted font-medium">확인 중...</span>
+          </div>
+        </div>
+      </div>
+      <div class="hidden md:block w-px h-7 bg-bdr"></div>
+      <div class="relative hidden md:block w-full max-w-xs">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-muted text-[18px]">search</span>
+        <input id="searchInput" type="text" placeholder="드라이버 또는 장치 검색..."
+          class="w-full bg-surface border border-transparent focus:border-primary/50 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder:text-muted focus:ring-1 focus:ring-primary/30 outline-none transition-all"/>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btnMainScan" class="btn-primary flex items-center gap-2 px-5 py-2 text-sm">
+        <span class="material-symbols-outlined text-[18px]">radar</span>스캔
+      </button>
+      <button id="btnMainDownloadDB" class="btn-outline flex items-center gap-2 px-4 py-2 text-sm" title="드라이버 DB 온라인 업데이트">
+        <span class="material-symbols-outlined text-[18px]">cloud_download</span>DB 업데이트
+      </button>
+      <button id="btnMainSettings" class="icon-btn" title="설정">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="flex-1 overflow-y-auto custom-scroll p-6 space-y-5">
+
+    <!-- System stat cards -->
+    <div id="sysCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+    <!-- State: Idle -->
+    <div id="stateIdle" class="flex flex-col items-center justify-center py-20 gap-4">
+      <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+        <span class="material-symbols-outlined text-primary text-3xl">manage_search</span>
+      </div>
+      <div class="text-center">
+        <div class="text-base font-semibold">하드웨어 스캔을 시작하세요</div>
+        <div class="text-sm text-muted mt-1">드라이버 업데이트 여부를 확인합니다</div>
+      </div>
+      <button onclick="document.getElementById('btnMainScan').click()" class="btn-primary flex items-center gap-2 px-6 py-2.5 mt-2">
+        <span class="material-symbols-outlined text-[18px]">radar</span>지금 스캔
+      </button>
+    </div>
+
+    <!-- State: Scanning -->
+    <div id="stateScanning" class="is-hidden flex flex-col items-center justify-center py-20 gap-4">
+      <div class="spinner-lg"></div>
+      <div class="text-center">
+        <div class="text-base font-semibold">하드웨어 스캔 중...</div>
+        <div class="text-sm text-muted mt-1">설치된 드라이버 버전을 확인하고 있습니다</div>
+      </div>
+    </div>
+
+    <!-- State: Results -->
+    <div id="stateResults" class="is-hidden space-y-4">
+
+      <!-- Result summary bar -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-bold">드라이버 관리</h2>
+          <span id="updateBadge" class="is-hidden text-xs bg-red-500/20 text-red-400 border border-red-500/20 px-2.5 py-0.5 rounded-full font-bold"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-muted bg-surface border border-bdr px-3 py-1 rounded-full">트리 뷰</span>
+          <button id="btnUpdateSelected" class="btn-primary flex items-center gap-2 px-5 py-2 text-sm" disabled>
+            <span class="material-symbols-outlined text-[18px]">system_update_alt</span>
+            <span id="updateBtnLabel">업데이트 선택</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tree table -->
+      <div class="bg-surface border border-bdr rounded-xl overflow-hidden">
+        <!-- Table header -->
+        <div class="flex items-center px-4 py-2.5 bg-white/[0.03] border-b border-bdr text-muted text-[11px] font-bold uppercase tracking-widest">
+          <div class="w-12 text-center">선택</div>
+          <div class="flex-1 pl-8">장치 / 카테고리</div>
+          <div class="w-44 hidden lg:block">현재 버전</div>
+          <div class="w-40">상태</div>
+          <div class="w-28 text-right pr-4">작업</div>
+        </div>
+        <!-- Device tree -->
+        <div id="deviceTree" class="divide-y divide-bdr/50"></div>
+        <div id="emptyTree" class="is-hidden py-12 text-center text-muted text-sm">
+          일치하는 드라이버가 없습니다. DB를 업데이트하세요.
+        </div>
+      </div>
+
+      <!-- Bottom info bar -->
+      <div class="flex items-center justify-between text-xs text-muted px-1 opacity-60">
+        <div class="flex items-center gap-6">
+          <span><span class="font-bold text-white">로컬 DB</span> · <span id="infoDbDate">날짜 없음</span></span>
+          <span id="infoScanTime"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          <span>자동 스캔 대기 중</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active task bottom bar (visible during download/install from main) -->
+  <div id="mainTaskBar" class="is-hidden bg-primary/5 border-t border-bdr px-6 py-3 flex items-center gap-4 shrink-0">
+    <span class="text-xs font-bold text-white uppercase tracking-widest whitespace-nowrap">진행 중</span>
+    <div class="flex-1 h-1.5 bg-bdr rounded-full overflow-hidden">
+      <div id="mainTaskBarFill" class="h-full bg-primary rounded-full transition-all duration-500" style="width:0%"></div>
+    </div>
+    <span id="mainTaskBarLabel" class="text-xs font-bold text-white whitespace-nowrap">--</span>
+    <button id="mainTaskBarCancel" class="p-1 text-muted hover:text-red-400 transition-colors">
+      <span class="material-symbols-outlined text-sm">close</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     VIEW 2 · DOWNLOADING — DB Download Progress
+═══════════════════════════════════════════════════════════════════ -->
+<div id="v-download" class="is-hidden flex flex-col h-screen">
+  <header class="flex items-center justify-between px-6 py-3 border-b border-bdr bg-[#111318]/90 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
+        <span class="material-symbols-outlined text-white text-xl">cloud_download</span>
+      </div>
+      <div>
+        <div class="text-sm font-bold">드라이버 DB 다운로드</div>
+        <div class="text-[10px] text-muted">온라인 업데이트 중...</div>
+      </div>
+    </div>
+    <button id="btnCancelDownload" class="btn-outline text-xs px-4 py-2 flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-sm">close</span>취소
+    </button>
+  </header>
+
+  <div class="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-8">
+    <!-- Main progress card -->
+    <div class="w-full max-w-xl bg-surface border border-bdr rounded-2xl p-8 space-y-6">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined text-2xl animate-bounce">download</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-bold text-white mb-0.5">드라이버 패키지 다운로드 중</div>
+          <div id="dlCurrentFile" class="text-xs text-muted font-mono truncate">대기 중...</div>
+        </div>
+        <div id="dlPercent" class="text-2xl font-black text-primary shrink-0">0%</div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="space-y-2">
+        <div class="h-2 bg-bdr rounded-full overflow-hidden">
+          <div id="dlBar" class="h-full bg-primary rounded-full transition-all duration-300" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-muted">
+          <span id="dlBytes">0 MB / 0 MB</span>
+          <span id="dlFileCount">0 / 0 파일</span>
+        </div>
+      </div>
+
+      <!-- File list -->
+      <div id="dlFileList" class="space-y-2 max-h-48 overflow-y-auto custom-scroll"></div>
+    </div>
+
+    <div id="dlStatusMsg" class="text-sm text-muted"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     VIEW 3 · INSTALLING — Installation Progress
+═══════════════════════════════════════════════════════════════════ -->
+<div id="v-install" class="is-hidden flex flex-col h-screen">
+
+  <!-- Top bar -->
+  <header class="flex items-center justify-between px-6 py-3 border-b border-bdr bg-[#111318]/90 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
+        <span class="material-symbols-outlined text-white text-xl animate-spin">sync</span>
+      </div>
+      <div>
+        <div class="text-sm font-bold">드라이버 설치 중</div>
+        <div class="text-[10px] text-muted">완료될 때까지 PC를 종료하지 마세요</div>
+      </div>
+    </div>
+    <button id="btnAbortInstall" class="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs font-bold transition-colors">
+      <span class="material-symbols-outlined text-sm">cancel</span>설치 중단
+    </button>
+  </header>
+
+  <!-- Body: left + right -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- LEFT PANEL -->
+    <aside class="hidden lg:flex flex-col items-center w-80 border-r border-bdr bg-surface/30 p-6 gap-6 shrink-0 overflow-y-auto">
+      <!-- Ring -->
+      <div class="relative flex items-center justify-center mt-2">
+        <svg id="instRingSvg" viewBox="0 0 120 120" class="w-52 h-52 -rotate-90">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#2d3544" stroke-width="10"/>
+          <circle id="instRingFill" cx="60" cy="60" r="52" fill="none"
+            stroke="#135bec" stroke-width="10" stroke-linecap="round"
+            stroke-dasharray="326.73" stroke-dashoffset="326.73"
+            style="transition: stroke-dashoffset 0.5s ease;"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span id="instPct" class="text-4xl font-black">0%</span>
+          <span class="text-xs text-muted mt-0.5">완료</span>
+        </div>
+      </div>
+
+      <!-- Heading -->
+      <div class="text-center">
+        <div class="text-base font-bold">시스템 업데이트 진행 중</div>
+        <div class="text-xs text-muted mt-1 leading-relaxed">최적화된 드라이버를 설치하고 있습니다</div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 gap-3 w-full">
+        <div class="flex flex-col items-center p-4 rounded-xl bg-bg border border-bdr">
+          <span class="material-symbols-outlined text-primary text-xl mb-1">timer</span>
+          <span class="text-[10px] text-muted uppercase font-bold">경과 시간</span>
+          <span id="instElapsed" class="text-sm font-bold mt-0.5">0초</span>
+        </div>
+        <div class="flex flex-col items-center p-4 rounded-xl bg-bg border border-bdr">
+          <span class="material-symbols-outlined text-green-500 text-xl mb-1">check_circle</span>
+          <span class="text-[10px] text-muted uppercase font-bold">설치 완료</span>
+          <span id="instCount" class="text-sm font-bold mt-0.5">0 / 0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANEL -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex-1 overflow-y-auto custom-scroll p-5 space-y-5">
+
+        <!-- Current operation -->
+        <section>
+          <div class="flex items-center gap-2 mb-3">
+            <span class="flex w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            <h3 class="text-sm font-bold">현재 작업</h3>
+          </div>
+          <div id="currentOpCard" class="bg-surface border border-primary/50 rounded-xl p-5 relative overflow-hidden">
+            <div class="absolute left-0 top-0 w-1 h-full bg-primary rounded-l-xl"></div>
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined animate-spin text-2xl">sync</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                  <span id="opName" class="text-sm font-bold truncate">준비 중...</span>
+                  <span class="text-xs text-primary font-medium">설치 중...</span>
+                </div>
+                <p id="opMeta" class="text-xs text-muted mb-2.5 truncate">--</p>
+                <div class="h-1.5 bg-bg rounded-full overflow-hidden">
+                  <div id="opBar" class="h-full bg-primary rounded-full shimmer-bar" style="width:0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Queue -->
+        <section>
+          <h3 class="text-sm font-bold mb-3">설치 큐</h3>
+          <div id="installQueue" class="space-y-2.5"></div>
+        </section>
+
+        <div class="h-36"></div>
+      </div>
+
+      <!-- Bottom console (sticky) -->
+      <div class="border-t border-bdr bg-[#0a0e14] shrink-0 h-44 flex flex-col">
+        <div class="flex items-center justify-between px-4 py-2 border-b border-white/5">
+          <div class="flex items-center gap-2">
+            <div class="flex gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500/60"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/60"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-green-500/60"></span>
+            </div>
+            <span class="text-[10px] text-muted font-mono uppercase tracking-widest ml-1">System Log</span>
+          </div>
+          <button id="btnClearConsole" class="text-muted hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-sm">delete_sweep</span>
+          </button>
+        </div>
+        <div id="consoleOutput" class="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed text-gray-500 space-y-0.5"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     VIEW 4 · COMPLETE — Installation Summary
+═══════════════════════════════════════════════════════════════════ -->
+<div id="v-complete" class="is-hidden flex flex-col h-screen relative" style="background:#0d170d;">
+
+  <!-- Blurred background table -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-30 blur-sm p-8 pt-20">
+    <table class="w-full text-left text-sm">
+      <thead>
+        <tr class="text-muted text-xs uppercase border-b border-white/10">
+          <th class="pb-3 pl-4">장치</th>
+          <th class="pb-3">버전</th>
+          <th class="pb-3">날짜</th>
+          <th class="pb-3 text-right pr-4">상태</th>
+        </tr>
+      </thead>
+      <tbody id="completeBgTable" class="divide-y divide-white/5"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal overlay -->
+  <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
+    <div id="completeModal" class="bg-[#152015]/90 backdrop-blur-xl border border-green-500/30 rounded-2xl shadow-[0_0_60px_-15px_rgba(19,236,19,0.25)] max-w-md w-full p-8 flex flex-col items-center text-center relative overflow-hidden">
+      <div id="completeGlow1" class="absolute -top-20 -left-20 w-48 h-48 bg-green-500/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div id="completeGlow2" class="absolute -bottom-20 -right-20 w-48 h-48 bg-green-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10 flex flex-col items-center w-full">
+        <!-- Icon -->
+        <div id="completeIcon" class="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mb-5 shadow-[0_0_20px_rgba(19,236,19,0.3)]">
+          <span id="completeIconSpan" class="material-symbols-outlined text-green-400 text-3xl">check_circle</span>
+        </div>
+
+        <h2 id="completeTitle" class="text-xl font-bold mb-1 text-white">설치 완료</h2>
+        <p id="completeSubtitle" class="text-sm text-gray-400 mb-1">모든 드라이버가 성공적으로 설치되었습니다.</p>
+
+        <!-- Stats row -->
+        <div class="flex items-center gap-5 my-4 text-center">
+          <div>
+            <div class="text-2xl font-black text-white" id="completeSuccessCount">0</div>
+            <div class="text-[10px] text-gray-500 uppercase font-bold">성공</div>
+          </div>
+          <div class="w-px h-8 bg-white/10"></div>
+          <div>
+            <div class="text-2xl font-black text-red-400" id="completeFailCount">0</div>
+            <div class="text-[10px] text-gray-500 uppercase font-bold">실패</div>
+          </div>
+          <div class="w-px h-8 bg-white/10"></div>
+          <div>
+            <div class="text-lg font-black text-gray-300" id="completeElapsed">--</div>
+            <div class="text-[10px] text-gray-500 uppercase font-bold">소요 시간</div>
+          </div>
+        </div>
+
+        <!-- Result list -->
+        <div id="completeResultList" class="w-full max-h-40 overflow-y-auto custom-scroll space-y-1.5 mb-5 text-left"></div>
+
+        <!-- Reboot section (shown if needed) -->
+        <div id="rebootSection" class="is-hidden w-full mb-5">
+          <div class="flex items-center gap-2 text-yellow-400 text-xs font-bold mb-3">
+            <span class="material-symbols-outlined text-sm">restart_alt</span>
+            일부 드라이버 적용을 위해 재시작이 필요합니다
+          </div>
+          <div class="flex items-baseline gap-2 justify-center mb-2">
+            <span class="text-gray-500 text-xs">자동 재시작까지</span>
+            <span id="rebootCountdown" class="text-green-400 text-4xl font-mono font-black tracking-tight">60</span>
+            <span class="text-gray-500 text-xs">초</span>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div id="completeBtnsReboot" class="is-hidden flex flex-col w-full gap-2.5">
+          <button id="btnRestartNow" class="w-full py-3 bg-green-500 hover:bg-green-400 text-black font-bold rounded-lg transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined">power_settings_new</span>지금 재시작
+          </button>
+          <button id="btnRestartLater" class="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-medium rounded-lg border border-white/10 transition-all">
+            나중에 재시작
+          </button>
+        </div>
+        <div id="completeBtnsDone" class="flex flex-col w-full gap-2.5">
+          <button id="btnCompleteDone" class="w-full py-3 bg-green-500 hover:bg-green-400 text-black font-bold rounded-lg transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+            완료
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SETTINGS DRAWER
+═══════════════════════════════════════════════════════════════════ -->
+<div id="drawerOverlay" class="is-hidden fixed inset-0 bg-black/50 z-40" onclick="closeSettings()"></div>
+<aside id="settingsDrawer" class="fixed top-0 bottom-0 right-0 w-96 bg-[#131820] border-l border-bdr z-50 flex flex-col transition-transform duration-300 translate-x-full">
+  <div class="flex items-center justify-between p-5 border-b border-bdr">
+    <span class="font-bold">설정</span>
+    <button onclick="closeSettings()" class="icon-btn"><span class="material-symbols-outlined">close</span></button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-5 space-y-4 custom-scroll">
+    <div class="form-group">
+      <label class="form-label">원격 Manifest URL</label>
+      <input id="sCdnUrl" type="text" class="form-input" placeholder="https://..."/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">CDN 기본 URL</label>
+      <input id="sRemoteUrl" type="text" class="form-input" placeholder="https://..."/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">보관 버전 수</label>
+      <input id="sKeepVer" type="number" min="1" max="10" class="form-input" value="3"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">로그 레벨</label>
+      <select id="sLogLevel" class="form-input">
+        <option>DEBUG</option><option selected>INFO</option><option>WARNING</option><option>ERROR</option>
+      </select>
+    </div>
+    <label class="flex items-center gap-3 cursor-pointer">
+      <input id="sAutoUpdate" type="checkbox" class="w-4 h-4 accent-primary"/>
+      <span class="text-sm text-muted">자동 업데이트 확인</span>
+    </label>
+    <label class="flex items-center gap-3 cursor-pointer">
+      <input id="sReboot" type="checkbox" class="w-4 h-4 accent-primary" checked/>
+      <span class="text-sm text-muted">재부팅 필요 시 안내</span>
+    </label>
+  </div>
+  <div class="p-5 border-t border-bdr">
+    <button id="btnSaveSettings" class="btn-primary w-full py-2.5">저장</button>
+  </div>
+</aside>
+
+<script src="js/app.js"></script>
+</body>
+</html>

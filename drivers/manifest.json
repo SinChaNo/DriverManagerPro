@@ -1,0 +1,352 @@
+{
+  "schema_version": "1.0",
+  "last_updated": "2025-08-01",
+  "drivers": [
+    {
+      "id": "nvidia-geforce-desktop-dch",
+      "vendor": "NVIDIA",
+      "class": "Display",
+      "name": "NVIDIA GeForce Game Ready Driver (Desktop DCH)",
+      "hardware_ids": ["PCI\\VEN_10DE"],
+      "versions": [
+        {
+          "version": "572.83",
+          "date": "2025-02-27",
+          "tag": "latest",
+          "path": "nvidia/geforce/desktop/v572.83",
+          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-desktop-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 703,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "566.36",
+          "date": "2024-11-19",
+          "tag": "previous",
+          "path": "nvidia/geforce/desktop/v566.36",
+          "download_url": "https://us.download.nvidia.com/Windows/566.36/566.36-desktop-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 695,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "560.94",
+          "date": "2024-09-18",
+          "tag": "lts",
+          "path": "nvidia/geforce/desktop/v560.94",
+          "download_url": "https://us.download.nvidia.com/Windows/560.94/560.94-desktop-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 693,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "nvidia-geforce-notebook-dch",
+      "vendor": "NVIDIA",
+      "class": "Display",
+      "name": "NVIDIA GeForce Game Ready Driver (Notebook DCH)",
+      "hardware_ids": ["PCI\\VEN_10DE"],
+      "versions": [
+        {
+          "version": "572.83",
+          "date": "2025-02-27",
+          "tag": "latest",
+          "path": "nvidia/geforce/notebook/v572.83",
+          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-notebook-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 672,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "566.36",
+          "date": "2024-11-19",
+          "tag": "previous",
+          "path": "nvidia/geforce/notebook/v566.36",
+          "download_url": "https://us.download.nvidia.com/Windows/566.36/566.36-notebook-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 658,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "560.94",
+          "date": "2024-09-18",
+          "tag": "lts",
+          "path": "nvidia/geforce/notebook/v560.94",
+          "download_url": "https://us.download.nvidia.com/Windows/560.94/560.94-notebook-win10-win11-64bit-international-dch-whql.exe",
+          "inf": "",
+          "size_mb": 651,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "amd-radeon-whql",
+      "vendor": "AMD",
+      "class": "Display",
+      "name": "AMD Radeon Software Adrenalin WHQL",
+      "hardware_ids": ["PCI\\VEN_1002"],
+      "versions": [
+        {
+          "version": "24.10.1",
+          "date": "2024-10-10",
+          "tag": "latest",
+          "path": "amd/radeon/v24.10.1",
+          "download_url": "https://drivers.amd.com/drivers/installer/24.10/whql/amd-software-adrenalin-edition-24.10.1-minimalsetup-241010_web.exe",
+          "inf": "",
+          "size_mb": 485,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "24.7.1",
+          "date": "2024-07-16",
+          "tag": "previous",
+          "path": "amd/radeon/v24.7.1",
+          "download_url": "https://drivers.amd.com/drivers/installer/24.7/whql/amd-software-adrenalin-edition-24.7.1-minimalsetup-240716_web.exe",
+          "inf": "",
+          "size_mb": 478,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "24.5.1",
+          "date": "2024-05-29",
+          "tag": "lts",
+          "path": "amd/radeon/v24.5.1",
+          "download_url": "https://drivers.amd.com/drivers/installer/24.5/whql/amd-software-adrenalin-edition-24.5.1-minimalsetup-240529_web.exe",
+          "inf": "",
+          "size_mb": 470,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "intel-graphics-dch",
+      "vendor": "Intel",
+      "class": "Display",
+      "name": "Intel Graphics Driver (DCH)",
+      "hardware_ids": [
+        "PCI\\VEN_8086&DEV_46A6",
+        "PCI\\VEN_8086&DEV_A780",
+        "PCI\\VEN_8086&DEV_7D45",
+        "PCI\\VEN_8086&DEV_9A49"
+      ],
+      "versions": [
+        {
+          "version": "31.0.101.5592",
+          "date": "2024-10-01",
+          "tag": "latest",
+          "path": "intel/graphics/v31.0.101.5592",
+          "download_url": "https://downloadmirror.intel.com/836861/gfx_win_101.5592.exe",
+          "inf": "",
+          "size_mb": 400,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "31.0.101.5379",
+          "date": "2024-07-01",
+          "tag": "previous",
+          "path": "intel/graphics/v31.0.101.5379",
+          "download_url": "https://downloadmirror.intel.com/825009/gfx_win_101.5379.exe",
+          "inf": "",
+          "size_mb": 398,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "intel-chipset",
+      "vendor": "Intel",
+      "class": "System",
+      "name": "Intel Chipset Device Software",
+      "hardware_ids": [
+        "PCI\\VEN_8086&DEV_7A04",
+        "PCI\\VEN_8086&DEV_7A0D",
+        "PCI\\VEN_8086&DEV_51B8",
+        "PCI\\VEN_8086&DEV_A082"
+      ],
+      "versions": [
+        {
+          "version": "10.1.19.2",
+          "date": "2024-04-10",
+          "tag": "latest",
+          "path": "intel/chipset/v10.1.19.2",
+          "download_url": "https://downloadmirror.intel.com/825956/SetupChipset.exe",
+          "inf": "",
+          "size_mb": 6,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "10.1.18.5",
+          "date": "2023-07-26",
+          "tag": "previous",
+          "path": "intel/chipset/v10.1.18.5",
+          "download_url": "https://downloadmirror.intel.com/783837/SetupChipset.exe",
+          "inf": "",
+          "size_mb": 5,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "intel-wifi-ax",
+      "vendor": "Intel",
+      "class": "Net",
+      "name": "Intel Wi-Fi 6/6E Driver (AX200/AX201/AX210/AX211)",
+      "hardware_ids": [
+        "PCI\\VEN_8086&DEV_2723",
+        "PCI\\VEN_8086&DEV_06F0",
+        "PCI\\VEN_8086&DEV_A0F0",
+        "PCI\\VEN_8086&DEV_54F0",
+        "PCI\\VEN_8086&DEV_51F0"
+      ],
+      "versions": [
+        {
+          "version": "23.80.0",
+          "date": "2024-09-01",
+          "tag": "latest",
+          "path": "intel/wifi/v23.80.0",
+          "download_url": "https://downloadmirror.intel.com/833826/WiFi-23.80.0-Driver64-Win10-Win11.exe",
+          "inf": "",
+          "size_mb": 14,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "22.240.0",
+          "date": "2024-05-01",
+          "tag": "previous",
+          "path": "intel/wifi/v22.240.0",
+          "download_url": "https://downloadmirror.intel.com/824904/WiFi-22.240.0-Driver64-Win10-Win11.exe",
+          "inf": "",
+          "size_mb": 13,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "intel-bluetooth",
+      "vendor": "Intel",
+      "class": "Bluetooth",
+      "name": "Intel Wireless Bluetooth Driver",
+      "hardware_ids": [
+        "USB\\VID_8087&PID_0026",
+        "USB\\VID_8087&PID_0025",
+        "USB\\VID_8087&PID_0033",
+        "USB\\VID_8087&PID_0032"
+      ],
+      "versions": [
+        {
+          "version": "23.80.0",
+          "date": "2024-09-01",
+          "tag": "latest",
+          "path": "intel/bluetooth/v23.80.0",
+          "download_url": "https://downloadmirror.intel.com/833827/BT-23.80.0-64UWD-Win10-Win11.exe",
+          "inf": "",
+          "size_mb": 8,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        },
+        {
+          "version": "22.240.0",
+          "date": "2024-05-01",
+          "tag": "previous",
+          "path": "intel/bluetooth/v22.240.0",
+          "download_url": "https://downloadmirror.intel.com/824905/BT-22.240.0-64UWD-Win10-Win11.exe",
+          "inf": "",
+          "size_mb": 7,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "intel-me",
+      "vendor": "Intel",
+      "class": "System",
+      "name": "Intel Management Engine (ME) Driver",
+      "hardware_ids": [
+        "PCI\\VEN_8086&DEV_7AE8",
+        "PCI\\VEN_8086&DEV_51E0",
+        "PCI\\VEN_8086&DEV_A0E0"
+      ],
+      "versions": [
+        {
+          "version": "2309.5.4.0",
+          "date": "2024-05-01",
+          "tag": "latest",
+          "path": "intel/me/v2309.5.4.0",
+          "download_url": "https://downloadmirror.intel.com/832262/MEISetup.exe",
+          "inf": "",
+          "size_mb": 12,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "realtek-hd-audio",
+      "vendor": "Realtek",
+      "class": "Media",
+      "name": "Realtek HD Audio Driver",
+      "hardware_ids": [
+        "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0867",
+        "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0887",
+        "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0897",
+        "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0821",
+        "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0B00",
+        "HDAUDIO\\FUNC_01&VEN_10EC"
+      ],
+      "versions": [
+        {
+          "version": "6.0.9490.1",
+          "date": "2024-09-01",
+          "tag": "latest",
+          "path": "realtek/audio/v6.0.9490.1",
+          "download_url": "https://www.realtek.com/drivers/realtek-hd-audio-driver-6.0.9490.1-win10-win11.exe",
+          "inf": "",
+          "size_mb": 250,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    },
+    {
+      "id": "realtek-pcie-lan",
+      "vendor": "Realtek",
+      "class": "Net",
+      "name": "Realtek PCIe GbE / 2.5GbE LAN Driver",
+      "hardware_ids": [
+        "PCI\\VEN_10EC&DEV_8168",
+        "PCI\\VEN_10EC&DEV_8125",
+        "PCI\\VEN_10EC&DEV_8161"
+      ],
+      "versions": [
+        {
+          "version": "11.058.1003.2024",
+          "date": "2024-10-03",
+          "tag": "latest",
+          "path": "realtek/lan/v11.058.1003.2024",
+          "download_url": "https://www.realtek.com/drivers/realtek-pcie-lan-driver-11.058.1003.2024-win10-win11.exe",
+          "inf": "",
+          "size_mb": 12,
+          "os": ["win10", "win11"],
+          "arch": "x64"
+        }
+      ]
+    }
+  ]
+}
