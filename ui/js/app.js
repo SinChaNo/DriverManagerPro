@@ -29,6 +29,7 @@ const S = {
   view: 'main',             // main | download | install | complete
   mainState: 'idle',        // idle | scanning | results
   updateList: [],
+  fullUpdateList: [],       // 검색 필터링 전 전체 스캔 결과 — renderTree는 updateList를 덮어쓰므로 별도 보관
   selectedIds: new Set(),
   installStartTime: 0,
   installResults: [],
@@ -305,12 +306,28 @@ async function runScan() {
 
   consoleLog(`[INFO] 스캔 완료: ${updateList.length}개 일치, ${updateList.filter(d=>d.update_available).length}개 업데이트 가능`, 'info');
   setMainState('results');
+  S.fullUpdateList = updateList; // 검색 필터링 기준이 되는 전체 목록 보관
+  $('searchInput').value = '';   // 재스캔 시 검색어 초기화
   renderTree(updateList);
   $('btnMainScan').disabled = false;
   $('btnUpdateSelected').disabled = S.selectedIds.size === 0;
 }
 
 $('btnMainScan').addEventListener('click', runScan);
+
+// 검색창 실시간 필터링 — device_name / driver_name / vendor 기준
+$('searchInput').addEventListener('input', () => {
+  // 스캔 결과가 없는 상태에서는 무시
+  if (S.mainState !== 'results') return;
+  const q = $('searchInput').value.trim().toLowerCase();
+  if (!q) { renderTree(S.fullUpdateList); return; }
+  const filtered = S.fullUpdateList.filter(d =>
+    (d.device_name || '').toLowerCase().includes(q) ||
+    (d.driver_name || '').toLowerCase().includes(q) ||
+    (d.vendor      || '').toLowerCase().includes(q)
+  );
+  renderTree(filtered);
+});
 
 $('btnUpdateSelected').addEventListener('click', () => {
   const ids = [...S.selectedIds];

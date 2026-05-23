@@ -3,11 +3,13 @@
 수정 이력:
   2026-05-22 - onefile EXE 실행 시 UI 경로 오류 수정
                sys._MEIPASS(내장 리소스)와 EXE 폴더(쓰기 데이터)를 분리
+  2026-05-23 - _ensure_manifest(): 최초 실행 시 번들 manifest 자동 복사 추가
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -89,6 +91,23 @@ def _has_driver_db() -> bool:
         return bool(data.get("drivers"))
     except Exception:
         return False
+
+
+def _ensure_manifest() -> None:
+    """최초 실행 시 번들 manifest를 쓰기 가능한 데이터 디렉토리로 복사한다.
+
+    PyInstaller onedir 빌드 시 manifest는 _internal/(RESOURCE_DIR)에 번들되지만
+    앱은 EXE 옆 drivers/(BASE_DIR)를 참조한다. 파일이 없으면 스캔 불가.
+    """
+    settings = _load_settings()
+    download_path = settings.get("download_path", "drivers")
+    dest = BASE_DIR / download_path / "manifest.json"
+    if not dest.exists():
+        src = RESOURCE_DIR / download_path / "manifest.json"
+        if src.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            logger.info("번들 manifest를 데이터 디렉토리로 복사: %s", dest)
 
 
 class API:
@@ -256,6 +275,9 @@ def main() -> None:
         logger.warning("Not running as administrator — relaunching with UAC...")
         relaunch_as_admin()
         return
+
+    # 최초 실행 시 번들 manifest를 쓰기 가능한 데이터 디렉토리로 복사
+    _ensure_manifest()
 
     try:
         import webview  # type: ignore
