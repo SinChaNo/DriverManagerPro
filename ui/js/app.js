@@ -287,6 +287,35 @@ function updateSelectionUI() {
   const btn = $('btnUpdateSelected');
   btn.disabled = count === 0;
   $('updateBtnLabel').textContent = count > 0 ? `선택 설치 (${count})` : '업데이트 선택';
+
+  // 업데이트 가능한 드라이버 수와 선택 수를 비교하여 전체 선택 버튼 텍스트 갱신
+  const updatableCount = S.updateList.filter(d => d.update_available).length;
+  const allSelected = updatableCount > 0 && count >= updatableCount;
+  $('selectAllLabel').textContent = allSelected ? '전체 해제' : '전체 선택';
+}
+
+// 업데이트 가능한 드라이버를 전체 선택/해제 토글한다
+function selectAllUpdates() {
+  const updatableIds = S.updateList
+    .filter(d => d.update_available)
+    .map(d => d.driver_id);
+
+  // 전부 선택된 상태이면 전체 해제, 아니면 전체 선택
+  const allSelected = updatableIds.every(id => S.selectedIds.has(id));
+
+  const tree = $('deviceTree');
+  updatableIds.forEach(id => {
+    if (allSelected) {
+      S.selectedIds.delete(id);
+    } else {
+      S.selectedIds.add(id);
+    }
+    // DOM 체크박스 상태 동기화
+    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
+    if (cb) cb.checked = !allSelected;
+  });
+
+  updateSelectionUI();
 }
 
 // ── Scan flow ────────────────────────────────────────────────────────────────
@@ -309,24 +338,58 @@ async function runScan() {
   S.fullUpdateList = updateList; // 검색 필터링 기준이 되는 전체 목록 보관
   $('searchInput').value = '';   // 재스캔 시 검색어 초기화
   renderTree(updateList);
+
+  // 스캔 완료 시 업데이트 가능한 드라이버 자동 전체 선택
+  const updatableIds = updateList.filter(d => d.update_available).map(d => d.driver_id);
+  if (updatableIds.length > 0) {
+    const tree = $('deviceTree');
+    updatableIds.forEach(id => {
+      S.selectedIds.add(id);
+      const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
+      if (cb) cb.checked = true;
+    });
+  }
+
+  // 전체 선택 버튼 활성화 (업데이트 가능한 드라이버가 있을 때만)
+  $('btnSelectAll').disabled = updatableIds.length === 0;
   $('btnMainScan').disabled = false;
-  $('btnUpdateSelected').disabled = S.selectedIds.size === 0;
+  updateSelectionUI();
 }
 
 $('btnMainScan').addEventListener('click', runScan);
 
+// 전체 선택/해제 토글
+$('btnSelectAll').addEventListener('click', selectAllUpdates);
+
 // 검색창 실시간 필터링 — device_name / driver_name / vendor 기준
+// renderTree()가 S.selectedIds를 초기화하므로, 필터링 전후로 선택 상태를 보존한다
 $('searchInput').addEventListener('input', () => {
   // 스캔 결과가 없는 상태에서는 무시
   if (S.mainState !== 'results') return;
   const q = $('searchInput').value.trim().toLowerCase();
-  if (!q) { renderTree(S.fullUpdateList); return; }
-  const filtered = S.fullUpdateList.filter(d =>
-    (d.device_name || '').toLowerCase().includes(q) ||
-    (d.driver_name || '').toLowerCase().includes(q) ||
-    (d.vendor      || '').toLowerCase().includes(q)
-  );
-  renderTree(filtered);
+
+  // 필터링 전 선택 ID 보존
+  const savedIds = new Set(S.selectedIds);
+
+  if (!q) {
+    renderTree(S.fullUpdateList);
+  } else {
+    const filtered = S.fullUpdateList.filter(d =>
+      (d.device_name || '').toLowerCase().includes(q) ||
+      (d.driver_name || '').toLowerCase().includes(q) ||
+      (d.vendor      || '').toLowerCase().includes(q)
+    );
+    renderTree(filtered);
+  }
+
+  // renderTree가 selectedIds를 초기화하므로 복원 후 DOM 체크박스 동기화
+  const tree = $('deviceTree');
+  savedIds.forEach(id => {
+    S.selectedIds.add(id);
+    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
+    if (cb) cb.checked = true;
+  });
+  updateSelectionUI();
 });
 
 $('btnUpdateSelected').addEventListener('click', () => {
