@@ -5,6 +5,10 @@ Usage:
   python build.py            # builds both onefile + onedir
   python build.py --onefile  # portable single EXE only
   python build.py --onedir   # folder build only
+
+수정 이력:
+  2026-05-23 - onedir 빌드 후 중간 산출물(dist/DriverManagerPro.exe) 자동 삭제 추가
+               (실행 불가한 중간 EXE가 최종 EXE와 혼동되는 문제 방지)
 """
 
 from __future__ import annotations
@@ -105,49 +109,85 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path) -> str:
     ]
     hidden_str = ", ".join(repr(h) for h in hidden)
 
-    return f"""# -*- mode: python ; coding: utf-8 -*-
-a = Analysis(
-    [r'{HERE / "main.py"}'],
-    pathex=[r'{HERE}'],
-    binaries=[],
-    datas=[{datas_str}],
-    hiddenimports=[{hidden_str}],
-    hookspath=[],
-    runtime_hooks=[],
-    excludes=['tkinter', 'matplotlib', 'scipy', 'numpy'],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    noarchive=False,
-)
-pyz = PYZ(a.pure, a.zipped_data)
-exe = EXE(
-    pyz,
-    a.scripts,
-    {'a.binaries, a.zipfiles, a.datas,' if onefile else '[],' }
-    name='{name}{"_portable" if onefile else ""}',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=False,
-    icon=r'{icon_path}',
-    manifest=r'{manifest_path}',
-    uac_admin=True,
-    {'onefile=True,' if onefile else ''}
-)
-{'# onedir: also produce COLLECT' if not onefile else ''}
-{'' if onefile else f"""
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    name='{name}',
-)
-"""}
-"""
+    exe_lines = [
+        "exe = EXE(",
+        "    pyz,",
+        "    a.scripts,",
+        "    a.binaries, a.zipfiles, a.datas," if onefile else "    [],",
+        f"    name='{name}{'_portable' if onefile else ''}',",
+        "    debug=False,",
+        "    bootloader_ignore_signals=False,",
+        "    strip=False,",
+        "    upx=True,",
+        "    console=False,",
+        f"    icon=r'{icon_path}',",
+        f"    manifest=r'{manifest_path}',",
+        "    uac_admin=True,",
+        "    onefile=True," if onefile else "",
+        ")",
+    ]
+
+    coll_lines = []
+    if not onefile:
+        coll_lines = [
+            "\n# onedir: also produce COLLECT",
+            "coll = COLLECT(",
+            "    exe,",
+            "    a.binaries,",
+            "    a.zipfiles,",
+            "    a.datas,",
+            "    strip=False,",
+            "    upx=True,",
+            f"    name='{name}',",
+            ")",
+        ]
+
+    main_py_path = str(HERE / "main.py")
+    here_path = str(HERE)
+
+    return (
+        "# -*- mode: python ; coding: utf-8 -*-\n"
+        + "\n".join([
+            "a = Analysis(",
+            f"    [r'{main_py_path}'],",
+            f"    pathex=[r'{here_path}'],",
+            "    binaries=[],",
+            f"    datas=[{datas_str}],",
+            f"    hiddenimports=[{hidden_str}],",
+            "    hookspath=[],",
+            "    runtime_hooks=[],",
+            "    excludes=['tkinter', 'matplotlib', 'scipy', 'numpy'],",
+            "    win_no_prefer_redirects=False,",
+            "    win_private_assemblies=False,",
+            "    noarchive=False,",
+            ")",
+            "pyz = PYZ(a.pure, a.zipped_data)",
+            *exe_lines,
+            *coll_lines,
+        ])
+        + "\n"
+    )
+
+
+def _remove_stale_exe(dist_dir: Path, name: str, *, pre_build: bool) -> None:
+    """onedir 빌드 시 dist/ 루트에 남는 중간 산출물 EXE를 삭제한다.
+
+    COLLECT 단계가 최종 EXE를 dist/{name}/ 안으로 이동하므로 루트 EXE는 불필요.
+    pre_build=True이면 빌드 전 선제 삭제(잠금 전 제거), False이면 빌드 후 재시도.
+    """
+    stale_exe = dist_dir / f"{name}.exe"
+    if not stale_exe.exists():
+        return
+    try:
+        stale_exe.unlink()
+        label = "pre-build" if pre_build else "post-build"
+        print(f"  Removed intermediate EXE ({label}): {stale_exe}")
+    except PermissionError:
+        if not pre_build:
+            # 빌드 후에도 삭제 불가하면 올바른 경로를 안내
+            final_exe = dist_dir / name / f"{name}.exe"
+            print(f"  [WARNING] 중간 산출물 EXE 삭제 실패 (파일 잠금): {stale_exe}")
+            print(f"  [WARNING] 실행할 올바른 파일: {final_exe}")
 
 
 def run_build(mode: str) -> None:
@@ -166,6 +206,10 @@ def run_build(mode: str) -> None:
     spec_path.write_text(_build_spec(mode, icon_path, manifest_path), encoding="utf-8")
     print(f"  Spec written: {spec_path}")
 
+    # onedir 빌드 전 중간 산출물 EXE 선제 삭제 (빌드 후 파일 잠금 방지)
+    if mode == "onedir":
+        _remove_stale_exe(DIST, "DriverManagerPro", pre_build=True)
+
     import subprocess
     result = subprocess.run(
         [
@@ -180,6 +224,11 @@ def run_build(mode: str) -> None:
     if result.returncode != 0:
         print(f"[ERROR] PyInstaller failed for {mode} build (exit {result.returncode})")
         sys.exit(result.returncode)
+
+    # onedir 빌드 후 중간 산출물 EXE 재시도 삭제
+    if mode == "onedir":
+        _remove_stale_exe(DIST, "DriverManagerPro", pre_build=False)
+
     print(f"  Build OK - output in {DIST}")
 
 
