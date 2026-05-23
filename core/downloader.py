@@ -5,6 +5,9 @@
                도메인별 Referer 헤더 자동 지정 및 완전한 User-Agent 적용
   2026-05-22 - _download_file() 다운로드 후 0바이트 파일 검증 추가
                (0바이트 파일 생성 후 True 반환하던 버그 수정)
+  2026-05-23 - DB 업데이트 시 vendor_api 직접 조회 방식으로 변경
+               remote_manifest_url 방식 제거, 네트워크 연결 선행 체크 추가
+               다운로드 상태에 vendor_api 단계(phase) 필드 추가
 """
 
 from __future__ import annotations
@@ -43,6 +46,8 @@ def load_settings() -> dict:
 
 _download_state: dict = {
     "active": False,
+    "phase": "idle",          # "vendor_api" | "downloading" | "idle"
+    "phase_label": "",        # UI에 표시할 현재 단계 설명
     "total_files": 0,
     "downloaded_files": 0,
     "current_file": "",
@@ -50,6 +55,7 @@ _download_state: dict = {
     "current_total": 0,
     "error": None,
     "done": False,
+    "changes": [],            # 벤더 API 갱신으로 변경된 항목 목록
 }
 _state_lock = threading.Lock()
 
@@ -234,62 +240,96 @@ def download_driver_db(
     on_progress: Optional[Callable[[dict], None]] = None,
 ) -> bool:
     """
-    Download missing driver packages.
+    DB 업데이트: 벤더 API로 manifest 버전 갱신 후 드라이버 파일을 다운로드한다.
 
-    Priority:
-    1. version entry's download_url (vendor direct link)
-    2. cdn_base_url + path (custom CDN fallback)
+    실행 단계:
+    1. 네트워크 연결 확인 (오프라인이면 즉시 실패)
+    2. vendor_api 모듈로 NVIDIA/AMD 최신 버전 조회 → manifest 갱신 저장
+    3. manifest 기준으로 미다운로드 파일 수집 → 다운로드
 
-    Optionally fetches an updated manifest from remote_manifest_url first.
+    Priority for download URL:
+    1. version entry의 download_url (벤더 직접 링크)
+    2. cdn_base_url + path (사용자 CDN 폴백)
     """
+    from core.vendor_api import update_manifest_versions
+
     settings = load_settings()
-    remote_manifest_url: str = settings.get("remote_manifest_url", "").strip()
     cdn_base: str = settings.get("cdn_base_url", "").strip()
-    keep_versions: int = settings.get("keep_versions", 3)
+    keep_versions: int = settings.get("keep_versions", 2)
     base_dir = get_base_dir()
     drivers_dir = base_dir / settings.get("download_path", "drivers")
     local_manifest_path = drivers_dir / "manifest.json"
 
-    # Load local manifest
+    # --- 단계 1: 네트워크 연결 확인 ---
+    _set_state(
+        active=True, phase="vendor_api",
+        phase_label="네트워크 연결 확인 중...",
+        done=False, error=None, changes=[],
+    )
+    if on_progress:
+        on_progress(get_download_state())
+
+    if not check_connectivity():
+        logger.error("DB 업데이트 실패: 네트워크 연결 없음")
+        _set_state(
+            active=False, phase="idle", phase_label="",
+            done=True, error="네트워크에 연결되어 있지 않습니다.",
+        )
+        if on_progress:
+            on_progress(get_download_state())
+        return False
+
+    # --- 단계 2: 로컬 manifest 로드 ---
     local_manifest: dict = {"schema_version": "1.0", "drivers": []}
     if local_manifest_path.exists():
         try:
             with open(local_manifest_path, encoding="utf-8") as f:
                 local_manifest = json.load(f)
         except Exception as exc:
-            logger.error("Failed to load local manifest: %s", exc)
+            logger.error("manifest 로드 실패: %s", exc)
 
-    # Optionally merge a remote manifest update
-    if remote_manifest_url:
-        remote = fetch_remote_manifest(remote_manifest_url)
-        if remote:
-            local_by_id = {d["id"]: d for d in local_manifest.get("drivers", [])}
-            for entry in remote.get("drivers", []):
-                did = entry.get("id")
-                if did:
-                    local_by_id[did] = entry
-            local_manifest["drivers"] = list(local_by_id.values())
-            from datetime import datetime
-            local_manifest["last_updated"] = datetime.now().strftime("%Y-%m-%d")
-            drivers_dir.mkdir(parents=True, exist_ok=True)
-            with open(local_manifest_path, "w", encoding="utf-8") as f:
-                json.dump(local_manifest, f, indent=2, ensure_ascii=False)
-            logger.info("Remote manifest merged successfully")
+    # --- 단계 3: 벤더 API로 버전 정보 갱신 ---
+    _set_state(phase_label="벤더 API에서 최신 버전 조회 중...")
+    if on_progress:
+        on_progress(get_download_state())
 
-    # Collect what needs downloading
-    tasks = _collect_download_tasks(local_manifest, drivers_dir, cdn_base, keep_versions)
+    logger.info("벤더 API 조회 시작...")
+    updated_manifest, changes = update_manifest_versions(local_manifest)
+
+    # 갱신된 manifest 저장
+    drivers_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(local_manifest_path, "w", encoding="utf-8") as f:
+            json.dump(updated_manifest, f, indent=2, ensure_ascii=False)
+        logger.info("manifest 갱신 저장 완료 (변경: %d건)", len(changes))
+    except Exception as exc:
+        logger.error("manifest 저장 실패: %s", exc)
+
+    _set_state(changes=changes, phase_label=f"버전 조회 완료 ({len(changes)}건 갱신)")
+    if on_progress:
+        on_progress(get_download_state())
+
+    # --- 단계 4: 미다운로드 파일 수집 ---
+    _set_state(phase="downloading", phase_label="다운로드 목록 준비 중...")
+    if on_progress:
+        on_progress(get_download_state())
+
+    tasks = _collect_download_tasks(updated_manifest, drivers_dir, cdn_base, keep_versions)
     total = len(tasks)
 
     if total == 0:
-        logger.info("All drivers already present locally -- nothing to download")
-        _set_state(active=False, done=True, total_files=0, downloaded_files=0, error=None)
+        logger.info("모든 드라이버 파일이 이미 로컬에 존재함 — 다운로드 불필요")
+        _set_state(
+            active=False, phase="idle", phase_label="",
+            done=True, total_files=0, downloaded_files=0, error=None,
+        )
         if on_progress:
             on_progress(get_download_state())
         return True
 
-    logger.info("Starting download: %d driver package(s) to fetch", total)
-    _set_state(active=True, total_files=total, downloaded_files=0, done=False, error=None)
-
+    # --- 단계 5: 파일 다운로드 ---
+    logger.info("다운로드 시작: %d개 파일", total)
+    _set_state(total_files=total, downloaded_files=0)
     if on_progress:
         on_progress(get_download_state())
 
@@ -297,14 +337,14 @@ def download_driver_db(
     for idx, (url, dest, driver_id, version) in enumerate(tasks):
         filename = dest.name
         _set_state(current_file=filename, current_bytes=0, current_total=0)
-        logger.info("[%d/%d] %s v%s -> %s", idx + 1, total, driver_id, version, filename)
+        logger.info("[%d/%d] %s v%s → %s", idx + 1, total, driver_id, version, filename)
 
         ok = _download_file(url, dest)
         if ok:
             success_count += 1
-            logger.info("Downloaded OK: %s", filename)
+            logger.info("다운로드 완료: %s", filename)
         else:
-            logger.error("Failed: %s v%s", driver_id, version)
+            logger.error("다운로드 실패: %s v%s", driver_id, version)
 
         _set_state(downloaded_files=idx + 1)
         if on_progress:
@@ -312,14 +352,11 @@ def download_driver_db(
 
     all_ok = success_count == total
     _set_state(
-        active=False,
-        done=True,
-        current_file="",
+        active=False, phase="idle", phase_label="",
+        done=True, current_file="",
         error=None if all_ok else f"{total - success_count}개 파일 다운로드 실패",
     )
-    logger.info(
-        "Download complete: %d/%d succeeded", success_count, total
-    )
+    logger.info("다운로드 완료: %d/%d 성공", success_count, total)
     return all_ok
 
 

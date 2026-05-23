@@ -30,17 +30,6 @@
           "size_mb": 695,
           "os": ["win10", "win11"],
           "arch": "x64"
-        },
-        {
-          "version": "560.94",
-          "date": "2024-09-18",
-          "tag": "lts",
-          "path": "nvidia/geforce/desktop/v560.94",
-          "download_url": "https://us.download.nvidia.com/Windows/560.94/560.94-desktop-win10-win11-64bit-international-dch-whql.exe",
-          "inf": "",
-          "size_mb": 693,
-          "os": ["win10", "win11"],
-          "arch": "x64"
         }
       ]
     },
@@ -72,17 +61,6 @@
           "size_mb": 658,
           "os": ["win10", "win11"],
           "arch": "x64"
-        },
-        {
-          "version": "560.94",
-          "date": "2024-09-18",
-          "tag": "lts",
-          "path": "nvidia/geforce/notebook/v560.94",
-          "download_url": "https://us.download.nvidia.com/Windows/560.94/560.94-notebook-win10-win11-64bit-international-dch-whql.exe",
-          "inf": "",
-          "size_mb": 651,
-          "os": ["win10", "win11"],
-          "arch": "x64"
         }
       ]
     },
@@ -112,17 +90,6 @@
           "download_url": "https://drivers.amd.com/drivers/installer/24.7/whql/amd-software-adrenalin-edition-24.7.1-minimalsetup-240716_web.exe",
           "inf": "",
           "size_mb": 478,
-          "os": ["win10", "win11"],
-          "arch": "x64"
-        },
-        {
-          "version": "24.5.1",
-          "date": "2024-05-29",
-          "tag": "lts",
-          "path": "amd/radeon/v24.5.1",
-          "download_url": "https://drivers.amd.com/drivers/installer/24.5/whql/amd-software-adrenalin-edition-24.5.1-minimalsetup-240529_web.exe",
-          "inf": "",
-          "size_mb": 470,
           "os": ["win10", "win11"],
           "arch": "x64"
         }
