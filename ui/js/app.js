@@ -288,31 +288,38 @@ function updateSelectionUI() {
   btn.disabled = count === 0;
   $('updateBtnLabel').textContent = count > 0 ? `선택 설치 (${count})` : '업데이트 선택';
 
-  // 업데이트 가능한 드라이버 수와 선택 수를 비교하여 전체 선택 버튼 텍스트 갱신
-  const updatableCount = S.updateList.filter(d => d.update_available).length;
-  const allSelected = updatableCount > 0 && count >= updatableCount;
-  $('selectAllLabel').textContent = allSelected ? '전체 해제' : '전체 선택';
+  // 헤더 체크박스 상태를 업데이트 가능 드라이버 선택 현황에 맞게 동기화
+  const cbAll = $('cbSelectAll');
+  if (cbAll) {
+    const updatableIds = S.updateList.filter(d => d.update_available).map(d => d.driver_id);
+    const selectedUpdatableCount = updatableIds.filter(id => S.selectedIds.has(id)).length;
+    const allSelected = updatableIds.length > 0 && selectedUpdatableCount === updatableIds.length;
+    const someSelected = selectedUpdatableCount > 0 && !allSelected;
+    cbAll.checked = allSelected;
+    cbAll.indeterminate = someSelected; // 일부만 선택된 경우 중간 상태 표시
+  }
 }
 
-// 업데이트 가능한 드라이버를 전체 선택/해제 토글한다
+// 업데이트 가능한 드라이버를 헤더 체크박스 상태에 따라 전체 선택/해제한다
 function selectAllUpdates() {
+  const cbAll = $('cbSelectAll');
+  // 헤더 체크박스의 현재 checked 값으로 선택 방향을 결정
+  const shouldSelect = cbAll ? cbAll.checked : false;
+
   const updatableIds = S.updateList
     .filter(d => d.update_available)
     .map(d => d.driver_id);
 
-  // 전부 선택된 상태이면 전체 해제, 아니면 전체 선택
-  const allSelected = updatableIds.every(id => S.selectedIds.has(id));
-
   const tree = $('deviceTree');
   updatableIds.forEach(id => {
-    if (allSelected) {
-      S.selectedIds.delete(id);
-    } else {
+    if (shouldSelect) {
       S.selectedIds.add(id);
+    } else {
+      S.selectedIds.delete(id);
     }
     // DOM 체크박스 상태 동기화
     const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
-    if (cb) cb.checked = !allSelected;
+    if (cb) cb.checked = shouldSelect;
   });
 
   updateSelectionUI();
@@ -350,16 +357,17 @@ async function runScan() {
     });
   }
 
-  // 전체 선택 버튼 활성화 (업데이트 가능한 드라이버가 있을 때만)
-  $('btnSelectAll').disabled = updatableIds.length === 0;
+  // 헤더 체크박스 활성화 (업데이트 가능한 드라이버가 있을 때만)
+  const cbAll = $('cbSelectAll');
+  if (cbAll) cbAll.disabled = updatableIds.length === 0;
   $('btnMainScan').disabled = false;
   updateSelectionUI();
 }
 
 $('btnMainScan').addEventListener('click', runScan);
 
-// 전체 선택/해제 토글
-$('btnSelectAll').addEventListener('click', selectAllUpdates);
+// 헤더 체크박스 — 업데이트 가능 드라이버 전체 선택/해제
+$('cbSelectAll').addEventListener('change', selectAllUpdates);
 
 // 검색창 실시간 필터링 — device_name / driver_name / vendor 기준
 // renderTree()가 S.selectedIds를 초기화하므로, 필터링 전후로 선택 상태를 보존한다

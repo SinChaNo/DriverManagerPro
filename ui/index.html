@@ -115,10 +115,6 @@
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-muted bg-surface border border-bdr px-3 py-1 rounded-full">트리 뷰</span>
-          <button id="btnSelectAll" class="btn-outline flex items-center gap-2 px-4 py-2 text-sm" disabled>
-            <span class="material-symbols-outlined text-[18px]">checklist</span>
-            <span id="selectAllLabel">전체 선택</span>
-          </button>
           <button id="btnUpdateSelected" class="btn-primary flex items-center gap-2 px-5 py-2 text-sm" disabled>
             <span class="material-symbols-outlined text-[18px]">system_update_alt</span>
             <span id="updateBtnLabel">업데이트 선택</span>
@@ -130,7 +126,10 @@
       <div class="bg-surface border border-bdr rounded-xl overflow-hidden">
         <!-- Table header -->
         <div class="flex items-center px-4 py-2.5 bg-white/[0.03] border-b border-bdr text-muted text-[11px] font-bold uppercase tracking-widest">
-          <div class="w-12 text-center">선택</div>
+          <div class="w-12 flex justify-center">
+            <!-- 업데이트 가능 드라이버 전체 선택/해제 헤더 체크박스 -->
+            <input type="checkbox" id="cbSelectAll" class="w-4 h-4 rounded accent-primary cursor-pointer" disabled title="업데이트 필요 드라이버 전체 선택/해제"/>
+          </div>
           <div class="flex-1 pl-8">장치 / 카테고리</div>
           <div class="w-44 hidden lg:block">현재 버전</div>
           <div class="w-40">상태</div>
