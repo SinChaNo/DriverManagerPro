@@ -6,6 +6,9 @@ Compare installed driver versions against manifest entries.
   - 2026-05-22: NVIDIA 버전 형식 정규화 추가 (Windows 4-part → NVIDIA 2-part 변환)
                _hardware_ids_match에 VEN-only HWID 매칭 추가
                퍼지 매칭 키워드에서 "intel" 제거 (과다 매칭 방지)
+  - 2026-05-23: 보안 취약점 패치
+               - load_manifest(): _validate_manifest_schema()로 스키마 검증 추가
+               - _hardware_ids_match(): _MAX_HWID_LEN 길이 제한 및 ReDoS 방지 패턴 적용
 """
 
 from __future__ import annotations
@@ -79,6 +82,10 @@ def _normalize_installed_version(installed_ver: str, latest_ver: str, vendor: st
     return installed_ver
 
 
+# 하드웨어 ID 최대 허용 길이 — 초과 시 ReDoS 공격 가능성 있으므로 건너뜀
+_MAX_HWID_LEN = 256
+
+
 def _hardware_ids_match(device_hwids: list[str], driver_hwids: list[str]) -> bool:
     """기기 HardwareID 목록과 드라이버 HardwareID 목록 간 일치 여부를 반환한다.
 
@@ -89,12 +96,17 @@ def _hardware_ids_match(device_hwids: list[str], driver_hwids: list[str]) -> boo
     """
     device_upper = {h.upper() for h in device_hwids}
     for hwid in driver_hwids:
+        # 과도하게 긴 HWID는 ReDoS 위험이 있으므로 건너뜀
+        if len(hwid) > _MAX_HWID_LEN:
+            logger.warning("하드웨어 ID가 최대 길이를 초과합니다, 건너뜀: %s", hwid[:50])
+            continue
+
         # 완전 일치
         if hwid.upper() in device_upper:
             return True
 
-        # PCI VEN+DEV 부분 일치
-        pci_match = re.search(r"VEN_([0-9A-Fa-f]{4}).*DEV_([0-9A-Fa-f]{4})", hwid)
+        # PCI VEN+DEV 부분 일치 — [^&]* 로 ReDoS 방지 (& 구분자 경계 제한)
+        pci_match = re.search(r"VEN_([0-9A-Fa-f]{4})[^&]*DEV_([0-9A-Fa-f]{4})", hwid)
         if pci_match:
             ven, dev = pci_match.group(1).upper(), pci_match.group(2).upper()
             for d_hwid in device_upper:
@@ -102,8 +114,8 @@ def _hardware_ids_match(device_hwids: list[str], driver_hwids: list[str]) -> boo
                     return True
             continue
 
-        # USB VID+PID 부분 일치 (예: USB\VID_8087&PID_0026)
-        usb_match = re.search(r"VID_([0-9A-Fa-f]{4}).*PID_([0-9A-Fa-f]{4})", hwid)
+        # USB VID+PID 부분 일치 — [^&]* 로 ReDoS 방지 (예: USB\VID_8087&PID_0026)
+        usb_match = re.search(r"VID_([0-9A-Fa-f]{4})[^&]*PID_([0-9A-Fa-f]{4})", hwid)
         if usb_match:
             vid, pid = usb_match.group(1).upper(), usb_match.group(2).upper()
             for d_hwid in device_upper:
@@ -126,12 +138,35 @@ def _class_matches(device_class: str, driver_class: str) -> bool:
     return device_class.lower() == driver_class.lower()
 
 
+def _validate_manifest_schema(data: dict) -> None:
+    """매니페스트 데이터의 기본 스키마를 검증한다. 이상 시 ValueError를 발생시킨다."""
+    if not isinstance(data, dict):
+        raise ValueError("매니페스트는 딕셔너리여야 합니다")
+    if not isinstance(data.get("drivers", []), list):
+        raise ValueError("drivers 필드는 리스트여야 합니다")
+    for driver in data.get("drivers", []):
+        if not isinstance(driver, dict):
+            continue
+        for version in driver.get("versions", []):
+            if not isinstance(version, dict):
+                continue
+            # 경로 순회 시퀀스가 포함된 path 필드 차단
+            path = version.get("path", "")
+            if isinstance(path, str) and (".." in path or path.startswith("/")):
+                raise ValueError(f"매니페스트 경로에 경로 순회가 감지되었습니다: {path}")
+
+
 def load_manifest(manifest_path: Path) -> dict:
     try:
         with open(manifest_path, encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        _validate_manifest_schema(data)
+        return data
     except (OSError, json.JSONDecodeError) as exc:
         logger.error("Failed to load manifest: %s", exc)
+        return {"schema_version": "1.0", "drivers": []}
+    except ValueError as exc:
+        logger.error("매니페스트 스키마 검증 실패: %s", exc)
         return {"schema_version": "1.0", "drivers": []}
 
 

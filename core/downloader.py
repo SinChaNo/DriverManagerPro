@@ -8,6 +8,9 @@
   2026-05-23 - DB 업데이트 시 vendor_api 직접 조회 방식으로 변경
                remote_manifest_url 방식 제거, 네트워크 연결 선행 체크 추가
                다운로드 상태에 vendor_api 단계(phase) 필드 추가
+  2026-05-23 - 보안 취약점 패치
+               - _local_file_exists(): 파일명 경로 순회 방지
+               - _collect_download_tasks(): 파일명 경로 순회 방지
 """
 
 from __future__ import annotations
@@ -130,9 +133,11 @@ def _local_file_exists(dest_dir: Path, download_url: str) -> Optional[Path]:
     """Return the existing local file path if the driver was already downloaded."""
     if not dest_dir.exists():
         return None
-    filename = download_url.rstrip("/").split("/")[-1]
-    candidate = dest_dir / filename
-    if candidate.exists() and candidate.stat().st_size > 0:
+    # Path.name으로 경로 순회 시퀀스 제거
+    raw_name = download_url.rstrip("/").split("/")[-1]
+    filename = Path(raw_name).name or ""
+    candidate = dest_dir / filename if filename else None
+    if candidate is not None and candidate.exists() and candidate.stat().st_size > 0:
         return candidate
     # Also check any .exe / .zip in the directory
     for f in dest_dir.iterdir():
@@ -218,8 +223,9 @@ def _collect_download_tasks(
 
             # Determine URL and destination
             if download_url:
-                # Vendor direct URL — filename from URL
-                filename = download_url.rstrip("/").split("/")[-1]
+                # Vendor direct URL — filename from URL (경로 순회 방지)
+                raw_name = download_url.rstrip("/").split("/")[-1]
+                filename = Path(raw_name).name or "driver.bin"
                 dest = dest_dir / filename
                 tasks.append((download_url, dest, driver_id, version))
             elif cdn_base:

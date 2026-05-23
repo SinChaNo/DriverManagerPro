@@ -1,4 +1,9 @@
-"""App self-update: check GitHub Releases and replace the running EXE."""
+"""App self-update: check GitHub Releases and replace the running EXE.
+
+수정 이력:
+  - 2026-05-23: 보안 취약점 패치
+                - apply_update(): 배치 스크립트 생성 전 경로에 인젝션 위험 문자 검증 추가
+"""
 
 from __future__ import annotations
 
@@ -159,6 +164,17 @@ def apply_update(download_url: str, on_progress: Optional[callable] = None) -> b
         # On Windows we can't replace a running EXE directly —
         # write a small batch script that does the swap after exit.
         bat_path = current_exe.parent / "_update_apply.bat"
+
+        # 배치 스크립트에 삽입될 경로에 인젝션 위험 문자가 있으면 중단
+        _BATCH_UNSAFE_CHARS = ('"', '\n', '\r', '&', '|', '<', '>')
+        for chk_path in (new_exe, current_exe):
+            chk_str = str(chk_path)
+            if any(c in chk_str for c in _BATCH_UNSAFE_CHARS):
+                logger.error("경로에 배치 인젝션 위험 문자가 포함되어 있습니다: %s", chk_str)
+                if new_exe.exists():
+                    new_exe.unlink()
+                return False
+
         bat_content = (
             "@echo off\n"
             "timeout /t 2 /nobreak > nul\n"

@@ -15,6 +15,11 @@ Silent driver installation via pnputil / vendor setup EXE.
                 - 예외 발생 시 exc_info=True 로깅
   - 2026-05-22: _download_driver() 0바이트 파일 검증 추가 (WinError 1392 예방)
                 _run_vendor_exe() MZ 헤더 검증 추가 (손상된 EXE 실행 차단)
+  - 2026-05-23: 보안 취약점 패치
+                - relaunch_as_admin(): subprocess.list2cmdline으로 명령줄 인수 이스케이프
+                - _download_driver(): 파일명 경로 순회(Path Traversal) 방지
+                - _run_vendor_exe(): 심볼릭 링크/경로 탈출 검증 추가
+                - install_driver(): 다운로드 URL HTTPS + 도메인 화이트리스트 검증
 """
 
 from __future__ import annotations
@@ -184,6 +189,16 @@ def _run_vendor_exe(exe_path: Path, vendor: str = "") -> tuple[bool, str, bool]:
         logger.error("EXE 파일 읽기 실패: %s", exc)
         return False, f"EXE 파일 읽기 실패: {exc}", False
 
+    # 심볼릭 링크 또는 경로 탈출 검증 — 프로젝트 기본 디렉토리 외부 EXE 실행 차단
+    try:
+        real_path = exe_path.resolve()
+        allowed_base = get_base_dir().resolve()
+        real_path.relative_to(allowed_base)
+    except ValueError:
+        msg = f"EXE 경로가 허용된 기본 디렉토리 밖에 있습니다: {exe_path}"
+        logger.error(msg)
+        return False, msg, False
+
     silent_flags = _get_silent_flags(vendor)
     cmd = [str(exe_path)] + silent_flags
     logger.info("Vendor EXE [%s]: %s", vendor or "unknown", " ".join(cmd))
@@ -224,11 +239,19 @@ def _download_driver(url: str, dest_dir: Path, driver_name: str) -> tuple[bool, 
 
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
-        # URL 마지막 세그먼트를 파일명으로 사용
-        filename = url.rstrip("/").split("/")[-1]
+        # URL 마지막 세그먼트를 파일명으로 사용 — Path.name으로 경로 순회 제거
+        raw_name = url.rstrip("/").split("/")[-1]
+        filename = Path(raw_name).name.replace("..", "_") or "driver.exe"
+        if filename.startswith("."):
+            filename = "driver.exe"
         if not filename.endswith(".exe"):
             filename = filename + ".exe"
         dest_file = dest_dir / filename
+        # 최종 경로가 dest_dir 내부인지 검증
+        try:
+            dest_file.resolve().relative_to(dest_dir.resolve())
+        except ValueError:
+            return False, f"경로 순회가 감지되었습니다: {filename}"
 
         headers = _build_request_headers(url)
         logger.info("Downloading %s -> %s", url, dest_file)
@@ -267,6 +290,39 @@ def _download_driver(url: str, dest_dir: Path, driver_name: str) -> tuple[bool, 
         return False, f"다운로드 실패: {exc}"
 
 
+# ── 다운로드 URL 검증 ─────────────────────────────────────────────────────────
+
+# 허용된 드라이버 다운로드 도메인 화이트리스트 (벤더 공식 사이트만 허용)
+_ALLOWED_DOWNLOAD_DOMAINS: frozenset[str] = frozenset({
+    "us.download.nvidia.com",
+    "international.download.nvidia.com",
+    "drivers.amd.com",
+    "downloadmirror.intel.com",
+    "download.intel.com",
+    "www.realtek.com",
+    "github.com",
+    "objects.githubusercontent.com",
+    "releases.githubusercontent.com",
+})
+
+
+def _validate_download_url(url: str) -> bool:
+    """다운로드 URL이 HTTPS이고 허용된 도메인인지 검증한다."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme != "https":
+        logger.error("다운로드 URL은 HTTPS만 허용됩니다: %s", url)
+        return False
+    if parsed.netloc.lower() not in _ALLOWED_DOWNLOAD_DOMAINS:
+        logger.error("허용되지 않은 다운로드 도메인: %s", parsed.netloc)
+        return False
+    return True
+
+
 # ── 단일 드라이버 설치 ────────────────────────────────────────────────────────
 
 def install_driver(driver_info: dict) -> dict:
@@ -299,6 +355,11 @@ def install_driver(driver_info: dict) -> dict:
         logger.info("Local path not found — attempting download: %s", download_url or "(no url)")
         if not download_url:
             msg = f"드라이버 경로를 찾을 수 없고 다운로드 URL도 없습니다: {driver_path}"
+            logger.error(msg)
+            return {"success": False, "message": msg, "reboot_required": False}
+
+        if not _validate_download_url(download_url):
+            msg = f"허용되지 않은 다운로드 URL입니다: {download_url}"
             logger.error(msg)
             return {"success": False, "message": msg, "reboot_required": False}
 
@@ -411,6 +472,8 @@ def relaunch_as_admin() -> None:
     """Re-launch the current process with UAC elevation."""
     import ctypes
     exe = sys.executable
-    params = " ".join(sys.argv)
+    # subprocess.list2cmdline은 Windows 명령줄 규칙에 맞게 따옴표·공백을 이스케이프한다.
+    # sys.argv[0]은 스크립트 경로이므로 제외하고 나머지 인수만 전달한다.
+    params = subprocess.list2cmdline(sys.argv[1:])
     ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 1)
     sys.exit(0)
