@@ -1,5 +1,13 @@
 'use strict';
 
+/*
+ * Driver Manager Pro — Frontend (pywebview JS API client)
+ *
+ * 수정 이력:
+ *   2026-05-25 - 프로그램 시작 시 자동 스캔 실행 추가 (init 함수)
+ *                중복 init 방지 플래그 _initDone 도입
+ */
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const RING_CIRC = 326.73; // 2 * PI * 52
@@ -862,25 +870,32 @@ window.closeSettings = closeSettings;
 
 // ── Init ────────────────────────────────────────────────────────────────────────
 
+// 중복 init 방지 플래그 — pywebviewready 이벤트와 폴백 양쪽에서 호출되는 경우 대비
+let _initDone = false;
+
 async function init() {
+  if (_initDone) return;
   if (!window.pywebview) {
     document.addEventListener('pywebviewready', init);
     return;
   }
+  _initDone = true;
 
   updateOnline();
   setInterval(updateOnline, 30000);
 
+  await renderSysCards();
+
   const hasDB = await call('has_driver_db');
   if (hasDB) {
-    setMainState('idle');
-    consoleLog('[INFO] 드라이버 DB 감지됨. 스캔 준비 완료.', 'info');
+    consoleLog('[INFO] 드라이버 DB 감지됨. 자동 스캔을 시작합니다.', 'info');
+    // 자동 스캔 — 사용자가 스캔 버튼을 누르지 않아도 시작 시 1회 실행
+    // renderSysCards() 완료 후 runScan() 호출하여 시스템 카드가 먼저 그려지도록 보장
+    await runScan();
   } else {
     setMainState('idle');
     consoleLog('[WARNING] 드라이버 DB가 비어 있습니다. "DB 업데이트" 버튼으로 다운로드하세요.', 'warn');
   }
-
-  await renderSysCards();
 }
 
 window.addEventListener('pywebviewready', init);

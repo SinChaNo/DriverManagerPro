@@ -6,7 +6,15 @@ Usage:
   python build.py --onefile  # portable single EXE only
   python build.py --onedir   # folder build only
 
+버전 관리 정책:
+  - config/app_version.json의 "version" 값을 읽어 빌드 산출물 파일명에 자동 접미사로 부여
+  - 산출물 명: DriverManagerPro_v{버전}.exe (portable: DriverManagerPro_v{버전}_portable.exe)
+  - 자잘한 버그 픽스 → 소수점 1 단위 증가 (1.0 → 1.1)
+  - 대규모 업데이트 → 정수부 증가 (1.x → 2.0)
+
 수정 이력:
+  2026-05-25 - 산출물 파일명에 app_version.json의 버전 접미사 자동 부여
+               빌드 시작 전 dist/ 디렉토리 전체 정리(이전 버전 잔존 파일 제거)
   2026-05-23 - onedir 빌드 후 중간 산출물(dist/DriverManagerPro.exe) 자동 삭제 추가
                (실행 불가한 중간 EXE가 최종 EXE와 혼동되는 문제 방지)
 """
@@ -14,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import struct
@@ -23,6 +32,41 @@ from pathlib import Path
 HERE = Path(__file__).parent.resolve()
 DIST = HERE / "dist"
 BUILD = HERE / "build"
+
+
+def _read_app_version() -> str:
+    """config/app_version.json에서 현재 버전 문자열을 읽어 반환한다.
+
+    파일이 없거나 파싱 실패 시 안전한 기본값(0.0.0)을 반환하여
+    빌드가 중단되지 않도록 한다.
+    """
+    try:
+        with open(HERE / "config" / "app_version.json", encoding="utf-8") as f:
+            return str(json.load(f).get("version", "0.0.0"))
+    except Exception:
+        return "0.0.0"
+
+
+def _clean_dist() -> None:
+    """빌드 시작 전 dist/ 디렉토리 내용을 모두 삭제한다.
+
+    이전 버전 산출물(EXE/폴더/로그 등)이 잔존하여 사용자가 혼동하지 않도록
+    빌드 시작 전에 한 번 깨끗이 정리한다. dist/ 자체는 유지하여
+    PyInstaller가 새로 생성하지 않아도 되도록 한다.
+    """
+    if not DIST.exists():
+        DIST.mkdir(parents=True, exist_ok=True)
+        return
+    for entry in DIST.iterdir():
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+            print(f"  Removed stale: {entry.name}")
+        except PermissionError as e:
+            # 파일 잠금(EXE 실행 중 등) 시 경고만 출력하고 계속 진행
+            print(f"  [WARNING] 삭제 실패(잠금 가능): {entry} — {e}")
 
 
 # ── Minimal icon generator (no Pillow dependency at build time) ────────────
@@ -92,9 +136,16 @@ def _write_manifest(dest: Path) -> None:
 
 
 # ── PyInstaller spec builder ─────────────────────────────────────────────────
-def _build_spec(mode: str, icon_path: Path, manifest_path: Path) -> str:
-    name = "DriverManagerPro"
+def _build_spec(mode: str, icon_path: Path, manifest_path: Path, version: str) -> str:
+    """PyInstaller spec 파일 내용을 문자열로 생성한다.
+
+    버전 접미사 규칙 — onedir: DriverManagerPro_v{version}
+                       onefile: DriverManagerPro_v{version}_portable
+    """
+    base_name = f"DriverManagerPro_v{version}"
     onefile = mode == "onefile"
+    exe_name = f"{base_name}_portable" if onefile else base_name
+    coll_name = base_name  # onedir 폴더명도 동일 형식으로 통일
 
     datas = [
         (str(HERE / "ui"),     "ui"),
@@ -114,7 +165,7 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path) -> str:
         "    pyz,",
         "    a.scripts,",
         "    a.binaries, a.zipfiles, a.datas," if onefile else "    [],",
-        f"    name='{name}{'_portable' if onefile else ''}',",
+        f"    name='{exe_name}',",
         "    debug=False,",
         "    bootloader_ignore_signals=False,",
         "    strip=False,",
@@ -138,7 +189,7 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path) -> str:
             "    a.datas,",
             "    strip=False,",
             "    upx=True,",
-            f"    name='{name}',",
+            f"    name='{coll_name}',",
             ")",
         ]
 
@@ -190,9 +241,9 @@ def _remove_stale_exe(dist_dir: Path, name: str, *, pre_build: bool) -> None:
             print(f"  [WARNING] 실행할 올바른 파일: {final_exe}")
 
 
-def run_build(mode: str) -> None:
+def run_build(mode: str, version: str) -> None:
     print(f"\n{'='*50}")
-    print(f"  Building: {mode.upper()}")
+    print(f"  Building: {mode.upper()}  (v{version})")
     print(f"{'='*50}")
 
     icon_path    = HERE / "assets" / "icon.ico"
@@ -203,12 +254,14 @@ def run_build(mode: str) -> None:
     _write_manifest(manifest_path)
 
     spec_path = HERE / f"DriverManagerPro_{mode}.spec"
-    spec_path.write_text(_build_spec(mode, icon_path, manifest_path), encoding="utf-8")
+    spec_path.write_text(_build_spec(mode, icon_path, manifest_path, version), encoding="utf-8")
     print(f"  Spec written: {spec_path}")
+
+    base_name = f"DriverManagerPro_v{version}"
 
     # onedir 빌드 전 중간 산출물 EXE 선제 삭제 (빌드 후 파일 잠금 방지)
     if mode == "onedir":
-        _remove_stale_exe(DIST, "DriverManagerPro", pre_build=True)
+        _remove_stale_exe(DIST, base_name, pre_build=True)
 
     import subprocess
     result = subprocess.run(
@@ -227,7 +280,7 @@ def run_build(mode: str) -> None:
 
     # onedir 빌드 후 중간 산출물 EXE 재시도 삭제
     if mode == "onedir":
-        _remove_stale_exe(DIST, "DriverManagerPro", pre_build=False)
+        _remove_stale_exe(DIST, base_name, pre_build=False)
 
     print(f"  Build OK - output in {DIST}")
 
@@ -246,8 +299,14 @@ def main() -> None:
     else:
         modes = ["onedir", "onefile"]
 
+    # 빌드 시작 전 이전 산출물 정리 — 모드와 무관하게 1회 수행
+    version = _read_app_version()
+    print(f"\n[INFO] Target version: v{version}")
+    print(f"[INFO] Cleaning {DIST} ...")
+    _clean_dist()
+
     for mode in modes:
-        run_build(mode)
+        run_build(mode, version)
 
     print("\nAll builds complete.")
 
