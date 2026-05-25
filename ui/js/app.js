@@ -6,6 +6,15 @@
  * 수정 이력:
  *   2026-05-25 - 프로그램 시작 시 자동 스캔 실행 추가 (init 함수)
  *                중복 init 방지 플래그 _initDone 도입
+ *   2026-05-25 - BIOS 카드 아이콘을 Material Symbols에 실존하는 이름으로 교체
+ *                ('settings_firmware' → 'developer_board') BIOS 제조사 부가 정보와
+ *                "수동 확인 필요" 배지 추가
+ *              - 트리 자식 영역에 들여쓰기 가이드 라인 추가 (tree-children 클래스)
+ *              - device-row 에 is-updatable/is-current 상태 클래스 부여
+ *              - 중복 driver_id 가 있을 때 disabled 행이 잘못 선택되던 버그 수정:
+ *                renderTree 진입 시 _dedupeByDriverId 로 중복 제거,
+ *                자동/전체 선택 및 검색 selectedIds 복원에 :not([disabled]) 가드 적용
+ *              - 카테고리 체크박스가 업데이트 없는 카테고리에서는 disabled 처리
  */
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -111,21 +120,40 @@ async function renderSysCards() {
   if (!summary) return;
   const container = $('sysCards');
   // BIOS 정보 포함 4개 카드 — index.html sysCards는 lg:grid-cols-4 그리드
+  // 아이콘은 Material Symbols Outlined 폰트에 실존하는 이름만 사용 (없는 이름은 텍스트로 노출됨)
   const cards = [
-    { icon: 'developer_board',   label: 'CPU',  value: summary.cpu  || '정보 없음', tag: null },
-    { icon: 'memory',            label: 'RAM',  value: summary.ram  || '정보 없음', tag: null },
-    { icon: 'monitor',           label: 'GPU',  value: summary.gpu  || '정보 없음', tag: null },
-    // BIOS 카드 — tag에 날짜 표시
-    { icon: 'settings_firmware', label: 'BIOS', value: summary.bios_version || '정보 없음', tag: summary.bios_date || null },
+    { icon: 'developer_board', label: 'CPU',  value: summary.cpu  || '정보 없음', tag: null,             sub: null },
+    { icon: 'memory',          label: 'RAM',  value: summary.ram  || '정보 없음', tag: null,             sub: null },
+    { icon: 'monitor',         label: 'GPU',  value: summary.gpu  || '정보 없음', tag: null,             sub: null },
+    // BIOS 카드 — 'motherboard' 아이콘 사용. 제조사·날짜를 부가 표시하고,
+    // 자동 검사 불가능한 항목이므로 "수동 확인" 안내 배지를 함께 노출
+    {
+      icon: 'developer_board',
+      label: 'BIOS / 메인보드',
+      value: summary.bios_version || '정보 없음',
+      tag: summary.bios_date || null,
+      sub: summary.bios_manufacturer || null,
+      manualCheck: true,
+    },
   ];
   container.innerHTML = cards.map(c => `
     <div class="sys-card group hover:border-primary/40">
-      <div class="flex justify-between items-start mb-2">
-        <span class="material-symbols-outlined text-primary">${c.icon}</span>
-        ${c.tag ? `<span class="text-xs text-muted bg-white/5 px-2 py-0.5 rounded">${c.tag}</span>` : ''}
+      <div class="flex justify-between items-start mb-2 gap-2">
+        <span class="material-symbols-outlined text-primary shrink-0">${c.icon}</span>
+        ${c.tag
+          ? `<span class="text-[10px] text-muted bg-white/5 px-2 py-0.5 rounded whitespace-nowrap shrink-0">${esc(c.tag)}</span>`
+          : ''}
       </div>
       <p class="text-muted text-xs font-medium">${c.label}</p>
-      <p class="text-sm font-bold text-white truncate">${esc(c.value)}</p>
+      <p class="text-sm font-bold text-white truncate" title="${esc(c.value)}">${esc(c.value)}</p>
+      ${c.sub
+        ? `<p class="text-[10px] text-muted truncate mt-0.5" title="${esc(c.sub)}">${esc(c.sub)}</p>`
+        : ''}
+      ${c.manualCheck
+        ? `<span class="inline-flex items-center gap-1 text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full mt-1 self-start" title="BIOS는 메인보드 제조사 사이트에서 직접 확인해야 합니다">
+             <span class="material-symbols-outlined text-[12px]">info</span>수동 확인 필요
+           </span>`
+        : ''}
     </div>`).join('');
 }
 
@@ -143,7 +171,26 @@ function deviceIcon(cls) {
   return 'hardware';
 }
 
+// 같은 driver_id를 가진 항목이 여러 개 들어오는 경우 한 개만 남기되,
+// update_available=true 인 항목을 우선하여 보존한다.
+// (백엔드가 중복 매칭을 반환할 때 disabled 행과 enabled 행이 같은 id를 공유해
+//  querySelector 가 잘못된 행을 잡아 disabled 체크박스가 체크 상태가 되는 버그 방지)
+function _dedupeByDriverId(list) {
+  const map = new Map();
+  for (const d of list) {
+    const id = d.driver_id;
+    if (!id) continue;
+    const prev = map.get(id);
+    if (!prev) { map.set(id, d); continue; }
+    // 기존 항목이 update_available=false 이고 새 항목이 true 면 교체
+    if (!prev.update_available && d.update_available) map.set(id, d);
+  }
+  return Array.from(map.values());
+}
+
 function renderTree(updateList) {
+  // 중복 driver_id 제거 (선택 버그 방지)
+  updateList = _dedupeByDriverId(updateList);
   S.updateList = updateList;
   S.selectedIds.clear();
 
@@ -206,8 +253,10 @@ function renderTree(updateList) {
         ? `<button class="text-primary hover:text-white text-xs font-bold underline underline-offset-4 transition-colors install-one" data-id="${esc(d.driver_id)}">설치</button>`
         : `<button class="text-muted text-xs underline underline-offset-4 cursor-default">상세</button>`;
 
+      // 행 상태 클래스로 시각적 우선순위 부여 (업데이트 필요 / 최신)
+      const rowStateClass = hasUpdate ? 'is-updatable' : 'is-current';
       return `
-        <div class="device-row flex items-center px-4 py-2.5 border-t border-bdr/40">
+        <div class="device-row ${rowStateClass} flex items-center px-4 py-2.5 border-t border-bdr/30">
           <div class="w-12 flex justify-center">
             <input type="checkbox" class="dev-cb w-4 h-4 rounded accent-primary cursor-pointer"
               data-id="${esc(d.driver_id)}" ${canSelect ? '' : 'disabled'}
@@ -238,7 +287,8 @@ function renderTree(updateList) {
       <details class="tree-category group border-b border-bdr/50 last:border-0" ${isOpen ? 'open' : ''}>
         <summary class="flex items-center px-4 py-3 bg-surface hover:bg-white/[0.03] cursor-pointer transition-colors select-none">
           <div class="w-12 flex justify-center" onclick="event.stopPropagation()">
-            <input type="checkbox" class="cat-cb w-4 h-4 rounded accent-primary cursor-pointer" data-cls="${esc(cls)}"/>
+            <input type="checkbox" class="cat-cb w-4 h-4 rounded accent-primary cursor-pointer" data-cls="${esc(cls)}"
+              ${clsUpdates === 0 ? 'disabled title="이 카테고리에는 업데이트가 필요한 드라이버가 없습니다"' : ''}/>
           </div>
           <div class="flex-1 flex items-center gap-3">
             <span class="material-symbols-outlined text-muted chevron text-[18px]">chevron_right</span>
@@ -247,7 +297,7 @@ function renderTree(updateList) {
             ${catBadge}
           </div>
         </summary>
-        <div class="bg-bg/40">${rows}</div>
+        <div class="tree-children">${rows}</div>
       </details>`;
   }).join('');
 
@@ -320,14 +370,14 @@ function selectAllUpdates() {
 
   const tree = $('deviceTree');
   updatableIds.forEach(id => {
-    if (shouldSelect) {
-      S.selectedIds.add(id);
-    } else {
-      S.selectedIds.delete(id);
-    }
-    // DOM 체크박스 상태 동기화
-    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
-    if (cb) cb.checked = shouldSelect;
+    // disabled(=최신) 체크박스가 잡히지 않도록 :not([disabled]) 가드
+    // (중복 driver_id가 있는 경우 querySelector가 disabled 행을 잡으면
+    //  disabled 체크박스에 checked=true 가 설정되어 시각적으로 체크된 것처럼 보임)
+    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]:not([disabled])`);
+    if (!cb) return; // 해당 id에 대응하는 활성 체크박스가 없으면 무시
+    if (shouldSelect) S.selectedIds.add(id);
+    else S.selectedIds.delete(id);
+    cb.checked = shouldSelect;
   });
 
   updateSelectionUI();
@@ -355,13 +405,16 @@ async function runScan() {
   renderTree(updateList);
 
   // 스캔 완료 시 업데이트 가능한 드라이버 자동 전체 선택
-  const updatableIds = updateList.filter(d => d.update_available).map(d => d.driver_id);
+  // renderTree 이후 S.updateList는 dedupe된 상태이므로 그것을 기준으로 한다
+  const updatableIds = S.updateList.filter(d => d.update_available).map(d => d.driver_id);
   if (updatableIds.length > 0) {
     const tree = $('deviceTree');
     updatableIds.forEach(id => {
+      // disabled 체크박스를 잡지 않도록 :not([disabled]) 가드
+      const cb = tree.querySelector(`.dev-cb[data-id="${id}"]:not([disabled])`);
+      if (!cb) return;
       S.selectedIds.add(id);
-      const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
-      if (cb) cb.checked = true;
+      cb.checked = true;
     });
   }
 
@@ -399,11 +452,13 @@ $('searchInput').addEventListener('input', () => {
   }
 
   // renderTree가 selectedIds를 초기화하므로 복원 후 DOM 체크박스 동기화
+  // disabled(=최신) 체크박스는 절대 건드리지 않는다
   const tree = $('deviceTree');
   savedIds.forEach(id => {
+    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]:not([disabled])`);
+    if (!cb) return;
     S.selectedIds.add(id);
-    const cb = tree.querySelector(`.dev-cb[data-id="${id}"]`);
-    if (cb) cb.checked = true;
+    cb.checked = true;
   });
   updateSelectionUI();
 });

@@ -94,12 +94,62 @@ body { font-family: 'Space Grotesk', sans-serif; }
 /* ── Tree view ── */
 .tree-category summary { list-style: none; }
 .tree-category summary::-webkit-details-marker { display: none; }
-.tree-category[open] summary .chevron { transform: rotate(90deg); }
+.tree-category[open] summary { background: rgba(19,91,236,0.04); }
+.tree-category[open] summary .chevron { transform: rotate(90deg); color: var(--primary); }
 .chevron { transition: transform 0.2s ease; }
 
+/* 카테고리(상위) 행의 시각 강조 */
+.tree-category > summary {
+  border-left: 3px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tree-category[open] > summary { border-left-color: var(--primary); }
+
+/* 카테고리 펼침 영역(자식 컨테이너) */
+.tree-children {
+  position: relative;
+  padding-left: 16px;
+  background: rgba(0,0,0,0.18);
+}
+/* 자식 영역의 들여쓰기 가이드 라인 (수직선) */
+.tree-children::before {
+  content: '';
+  position: absolute;
+  left: 30px;          /* 카테고리 아이콘 중앙 정렬에 맞춘 위치 */
+  top: 0;
+  bottom: 8px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--bdr), transparent);
+  opacity: 0.6;
+}
+
 /* ── Device row ── */
-.device-row { transition: background 0.1s; }
-.device-row:hover { background: rgba(255,255,255,0.025); }
+.device-row {
+  position: relative;
+  transition: background 0.1s;
+}
+.device-row:hover { background: rgba(19,91,236,0.06); }
+
+/* 자식 행 → 가이드 라인 분기 (수평 연결선) */
+.device-row::before {
+  content: '';
+  position: absolute;
+  left: 14px;          /* tree-children::before(30px - padding-left 16px) 와 정렬 */
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: var(--bdr);
+  opacity: 0.5;
+}
+
+/* 업데이트 필요한 행은 좌측 경계선 강조 */
+.device-row.is-updatable {
+  border-left: 2px solid rgba(239,68,68,0.4);
+}
+/* 최신 행은 옅게 표시 */
+.device-row.is-current {
+  opacity: 0.7;
+}
 
 /* ── Status badges ── */
 .badge {
