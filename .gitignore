@@ -14,3 +14,10 @@ drivers/**/*.msi
 drivers/**/*.zip
 drivers/**/*.7z
 drivers/**/*.cab
+
+# Claude Code 로컬 설정
+.claude/
+
+# Python 패키지 바이너리 (저장소에 커밋하지 않음)
+*.whl
+*.tar.gz
