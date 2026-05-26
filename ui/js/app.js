@@ -356,6 +356,43 @@ function updateSelectionUI() {
     cbAll.checked = allSelected;
     cbAll.indeterminate = someSelected; // 일부만 선택된 경우 중간 상태 표시
   }
+
+  // 카테고리 체크박스 동기화 — 각 카테고리의 활성 자식 체크박스 현황에 맞춰
+  // checked / indeterminate / unchecked 자동 반영
+  // (사용자가 자식을 직접 클릭하거나 헤더 토글로 변경할 때마다 카테고리 표시 갱신)
+  syncCategoryCheckboxes();
+}
+
+// 각 카테고리(.cat-cb)의 상태를 자식 활성 체크박스 현황에 맞춰 갱신한다.
+// 활성 자식 전부 체크 → checked, 일부만 체크 → indeterminate, 0개 → unchecked.
+// disabled(=업데이트 없는 카테고리)는 변경하지 않는다.
+function syncCategoryCheckboxes() {
+  const tree = $('deviceTree');
+  if (!tree) return;
+  tree.querySelectorAll('.cat-cb').forEach(cb => {
+    if (cb.disabled) return; // 업데이트 없는 카테고리는 처음 상태 유지
+    const cls = cb.dataset.cls;
+    // 해당 카테고리에 속한 활성(=업데이트 가능) 드라이버 id 모음
+    const activeIds = S.updateList
+      .filter(d => d.device_class === cls && d.update_available)
+      .map(d => d.driver_id);
+    if (activeIds.length === 0) {
+      cb.checked = false;
+      cb.indeterminate = false;
+      return;
+    }
+    const selectedCount = activeIds.filter(id => S.selectedIds.has(id)).length;
+    if (selectedCount === activeIds.length) {
+      cb.checked = true;
+      cb.indeterminate = false;
+    } else if (selectedCount > 0) {
+      cb.checked = false;
+      cb.indeterminate = true;
+    } else {
+      cb.checked = false;
+      cb.indeterminate = false;
+    }
+  });
 }
 
 // 업데이트 가능한 드라이버를 헤더 체크박스 상태에 따라 전체 선택/해제한다

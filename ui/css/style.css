@@ -108,38 +108,47 @@ body { font-family: 'Space Grotesk', sans-serif; }
 /* 카테고리 펼침 영역(자식 컨테이너) */
 .tree-children {
   position: relative;
-  padding-left: 16px;
+  padding-left: 24px;          /* ㄴ자 가지가 그려질 공간 */
   background: rgba(0,0,0,0.18);
-}
-/* 자식 영역의 들여쓰기 가이드 라인 (수직선) */
-.tree-children::before {
-  content: '';
-  position: absolute;
-  left: 30px;          /* 카테고리 아이콘 중앙 정렬에 맞춘 위치 */
-  top: 0;
-  bottom: 8px;
-  width: 1px;
-  background: linear-gradient(to bottom, var(--bdr), transparent);
-  opacity: 0.6;
 }
 
 /* ── Device row ── */
+/* 각 자식 행이 자체적으로 수직선(::before) + 수평 분기(::after)를 그린다.
+   마지막 행은 수직선을 행 중앙까지만 짧게 그려 ㄴ자 꼬리를 만든다. */
 .device-row {
   position: relative;
   transition: background 0.1s;
 }
 .device-row:hover { background: rgba(19,91,236,0.06); }
 
-/* 자식 행 → 가이드 라인 분기 (수평 연결선) */
+/* 행 좌측의 수직 가이드 라인 */
 .device-row::before {
   content: '';
   position: absolute;
-  left: 14px;          /* tree-children::before(30px - padding-left 16px) 와 정렬 */
+  left: 30px;                  /* 카테고리 체크박스 중앙(w-12=48px의 중간) 정렬 */
+  top: 0;
+  bottom: 0;
+  width: 2px;                  /* ㄴ자 가독성을 위해 2px */
+  background: var(--primary);
+  opacity: 0.55;
+}
+/* 마지막 자식: 수직선을 행 중앙까지만 그려 ㄴ자 꼬리 형성 */
+.tree-children > .device-row:last-child::before {
+  bottom: auto;
+  height: 50%;                 /* 행의 위 절반만 */
+}
+
+/* 행 중앙에서 우측으로 뻗는 수평 분기 가지 */
+.device-row::after {
+  content: '';
+  position: absolute;
+  left: 30px;                  /* 수직선과 정확히 정렬 */
   top: 50%;
-  width: 12px;
-  height: 1px;
-  background: var(--bdr);
-  opacity: 0.5;
+  margin-top: -1px;            /* 2px 두께를 행 중앙에 맞춤 */
+  width: 14px;
+  height: 2px;
+  background: var(--primary);
+  opacity: 0.55;
 }
 
 /* 업데이트 필요한 행은 좌측 경계선 강조 */
