@@ -45,6 +45,7 @@
 - 커밋 전에 항상 변경사항을 확인(git diff)한다.
 - 커밋 메시지 마지막에 반드시 아래 트레일러를 추가하세요
   - Co-Authored-By: Claude <ROBO@chanhyoi.kr>
+- 깃허브에 연동 되어있는 프로젝트인 경우 작업이 끝난 후 항상 깃허브에 최신화를 진행한다.
 
 ## Agent Teams 워크플로우
 
