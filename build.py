@@ -13,6 +13,10 @@ Usage:
   - 대규모 업데이트 → 정수부 증가 (1.x → 2.0)
 
 수정 이력:
+  2026-05-27 - GUI 백엔드 교체(pywebview → PyQt6 QtWebEngine)에 맞춰
+               hiddenimports/excludes 갱신. pywebview/clr 관련 제거,
+               PyQt6 모듈을 명시 추가하여 PyInstaller 자동 훅과 함께 정확한
+               번들링이 이뤄지도록 한다.
   2026-05-25 - 산출물 파일명에 app_version.json의 버전 접미사 자동 부여
                빌드 시작 전 dist/ 디렉토리 전체 정리(이전 버전 잔존 파일 제거)
   2026-05-23 - onedir 빌드 후 중간 산출물(dist/DriverManagerPro.exe) 자동 삭제 추가
@@ -154,9 +158,15 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path, version: str) -
     ]
     datas_str = ", ".join(f"({repr(str(s))}, {repr(d)})" for s, d in datas)
 
+    # PyQt6는 PyInstaller 내장 훅이 자동 처리하지만, 명시적으로 적어두면
+    # 그래프 분석 누락을 방지할 수 있다. webview/clr 관련 항목은 제거.
     hidden = [
-        "wmi", "psutil", "requests", "webview", "packaging",
+        "wmi", "psutil", "requests", "packaging",
         "win32api", "win32con", "win32gui", "pywintypes",
+        "PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets",
+        "PyQt6.QtWebChannel",
+        "PyQt6.QtWebEngineCore", "PyQt6.QtWebEngineWidgets",
+        "PyQt6.sip",
     ]
     hidden_str = ", ".join(repr(h) for h in hidden)
 
@@ -207,7 +217,9 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path, version: str) -
             f"    hiddenimports=[{hidden_str}],",
             "    hookspath=[],",
             "    runtime_hooks=[],",
-            "    excludes=['tkinter', 'matplotlib', 'scipy', 'numpy'],",
+            "    excludes=['tkinter', 'matplotlib', 'scipy', 'numpy',"
+            " 'webview', 'pywebview', 'clr', 'clr_loader', 'pythonnet',"
+            " 'PyQt5', 'PySide6', 'PySide2'],",
             "    win_no_prefer_redirects=False,",
             "    win_private_assemblies=False,",
             "    noarchive=False,",
