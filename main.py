@@ -8,6 +8,10 @@
                외부 런타임(.NET, WebView2) 의존성 제거. API 클래스를 QObject로 전환,
                각 메서드는 @pyqtSlot 데코레이터로 JS에서 호출 가능하게 등록.
                긴 블로킹 작업은 별도 QThread에서 실행하여 GUI 응답성 유지.
+  2026-05-27 - QtWebEngine 보안 정책으로 file:// 페이지가 https:// CDN 리소스
+               (Tailwind, Google Fonts, Material Symbols)에 접근하지 못해 UI가
+               깨지던 문제 수정. LocalContentCanAccessRemoteUrls 및
+               LocalContentCanAccessFileUrls 설정을 활성화.
 """
 
 from __future__ import annotations
@@ -67,6 +71,7 @@ from core.selfupdate import check_app_update, apply_update
 from PyQt6.QtCore import QObject, QThread, QUrl, pyqtSlot
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWebChannel import QWebChannel
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
@@ -355,6 +360,14 @@ def main() -> None:
     view = QWebEngineView(window)
     # 페이지 로드 전 어두운 배경으로 초기화하여 흰 플래시 방지
     view.page().setBackgroundColor(QColor("#101622"))
+
+    # file:// 로컬 페이지가 https:// 외부 CDN 리소스(Tailwind, Google Fonts,
+    # Material Symbols)에 접근하도록 허용. QtWebEngine 기본값은 차단이며,
+    # 이를 활성화하지 않으면 UI 스타일/아이콘/폰트가 전부 적용되지 않는다.
+    web_settings = view.settings()
+    web_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+    web_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+
     window.setCentralWidget(view)
 
     # ── API 객체를 별도 QThread로 이동하여 GUI 차단 방지 ─────────────────────
