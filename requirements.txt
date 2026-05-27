@@ -1,7 +1,9 @@
-pywebview>=6.2.1
+PyQt6>=6.7.0
+PyQt6-WebEngine>=6.7.0
 wmi==1.5.1
 psutil>=6.1.0
 requests>=2.32.3
 packaging>=24.2
+pywin32>=308
 pyinstaller>=6.20.0
 pillow>=11.0.0
