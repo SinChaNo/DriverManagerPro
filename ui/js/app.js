@@ -236,7 +236,9 @@ function renderTree(updateList) {
     const devices = groups[cls];
     const catInfo = CAT[cls] || CAT.Other;
     const clsUpdates = devices.filter(d => d.update_available).length;
-    const isOpen = clsUpdates > 0;
+    // 카테고리는 항상 펼친 상태로 시작한다. 업데이트가 필요 없는 드라이버도
+    // 사용자가 확인할 수 있어야 하므로 자동 접힘은 사용하지 않는다.
+    const isOpen = true;
 
     const rows = devices.map(d => {
       const hasUpdate = d.update_available;

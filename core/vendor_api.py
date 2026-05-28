@@ -144,20 +144,25 @@ def fetch_nvidia_versions(driver_id: str, current_versions: list[dict]) -> Optio
         "numberOfResults": "2",
     }
 
+    logger.info("NVIDIA API 호출: pfid=%s", pfid)
     resp = _get(_NVIDIA_GFE_API, params=params)
     if not resp:
+        logger.error("NVIDIA API: HTTP 응답 없음 (pfid=%s)", pfid)
         return None
 
+    logger.info("NVIDIA API: HTTP %s 수신 (pfid=%s)", resp.status_code, pfid)
     try:
         data = resp.json()
     except Exception as exc:
-        logger.warning("NVIDIA API: JSON 파싱 실패: %s", exc)
+        logger.warning("NVIDIA API: JSON 파싱 실패: %s — 본문 일부: %s", exc, resp.text[:200])
         return None
 
     ids = data.get("IDS", [])
     if not ids:
-        logger.warning("NVIDIA API: pfid=%s 에 대한 결과 없음", pfid)
+        logger.warning("NVIDIA API: pfid=%s 에 대한 결과 없음. 응답 키: %s", pfid, list(data.keys()))
         return None
+
+    logger.info("NVIDIA API: pfid=%s → %d개 결과 수신", pfid, len(ids))
 
     entries: list[dict] = []
     for item in ids[:2]:
