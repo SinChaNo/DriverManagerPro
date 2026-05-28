@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "last_updated": "2025-08-01",
+  "last_updated": "2026-05-28",
   "drivers": [
     {
       "id": "nvidia-geforce-desktop-dch",
@@ -10,24 +10,24 @@
       "hardware_ids": ["PCI\\VEN_10DE"],
       "versions": [
         {
-          "version": "572.83",
-          "date": "2025-02-27",
+          "version": "610.47",
+          "date": "2026-05-26",
           "tag": "latest",
-          "path": "nvidia/geforce/desktop/v572.83",
-          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-desktop-win10-win11-64bit-international-dch-whql.exe",
+          "path": "nvidia/geforce/desktop/v610.47",
+          "download_url": "https://us.download.nvidia.com/Windows/610.47/610.47-desktop-win10-win11-64bit-international-dch-whql.exe",
           "inf": "",
-          "size_mb": 703,
+          "size_mb": 978,
           "os": ["win10", "win11"],
           "arch": "x64"
         },
         {
-          "version": "566.36",
-          "date": "2024-11-19",
+          "version": "572.83",
+          "date": "2025-02-27",
           "tag": "previous",
-          "path": "nvidia/geforce/desktop/v566.36",
-          "download_url": "https://us.download.nvidia.com/Windows/566.36/566.36-desktop-win10-win11-64bit-international-dch-whql.exe",
+          "path": "nvidia/geforce/desktop/v572.83",
+          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-desktop-win10-win11-64bit-international-dch-whql.exe",
           "inf": "",
-          "size_mb": 695,
+          "size_mb": 703,
           "os": ["win10", "win11"],
           "arch": "x64"
         }
@@ -41,24 +41,24 @@
       "hardware_ids": ["PCI\\VEN_10DE"],
       "versions": [
         {
-          "version": "572.83",
-          "date": "2025-02-27",
+          "version": "610.47",
+          "date": "2026-05-26",
           "tag": "latest",
-          "path": "nvidia/geforce/notebook/v572.83",
-          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-notebook-win10-win11-64bit-international-dch-whql.exe",
+          "path": "nvidia/geforce/notebook/v610.47",
+          "download_url": "https://us.download.nvidia.com/Windows/610.47/610.47-notebook-win10-win11-64bit-international-dch-whql.exe",
           "inf": "",
-          "size_mb": 672,
+          "size_mb": 950,
           "os": ["win10", "win11"],
           "arch": "x64"
         },
         {
-          "version": "566.36",
-          "date": "2024-11-19",
+          "version": "572.83",
+          "date": "2025-02-27",
           "tag": "previous",
-          "path": "nvidia/geforce/notebook/v566.36",
-          "download_url": "https://us.download.nvidia.com/Windows/566.36/566.36-notebook-win10-win11-64bit-international-dch-whql.exe",
+          "path": "nvidia/geforce/notebook/v572.83",
+          "download_url": "https://us.download.nvidia.com/Windows/572.83/572.83-notebook-win10-win11-64bit-international-dch-whql.exe",
           "inf": "",
-          "size_mb": 658,
+          "size_mb": 672,
           "os": ["win10", "win11"],
           "arch": "x64"
         }

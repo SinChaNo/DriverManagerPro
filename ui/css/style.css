@@ -1,5 +1,74 @@
 /* Driver Manager Pro — Custom CSS */
 
+/* ── 로컬 번들 폰트 ──────────────────────────────────────────────────────
+   네트워크/CDN 의존 제거를 위해 ui/fonts/ 에 woff2 직접 번들. Google Fonts
+   CDN 차단/지연 환경에서도 아이콘과 본문 폰트가 안정적으로 표시된다.
+*/
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  src: url('../fonts/material-symbols-outlined.woff2') format('woff2');
+  font-display: block;  /* 아이콘은 fallback 텍스트 노출 방지 위해 block */
+}
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/space-grotesk-400.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  src: url('../fonts/space-grotesk-500.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  src: url('../fonts/space-grotesk-600.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  src: url('../fonts/space-grotesk-700.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400;
+  src: url('../fonts/fira-code-400.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 500;
+  src: url('../fonts/fira-code-500.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   --primary: #135bec;
   --bg: #0f131a;

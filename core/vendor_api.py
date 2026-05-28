@@ -164,6 +164,20 @@ def fetch_nvidia_versions(driver_id: str, current_versions: list[dict]) -> Optio
 
     logger.info("NVIDIA API: pfid=%s → %d개 결과 수신", pfid, len(ids))
 
+    # NVIDIA API가 응답 형식만 200으로 반환하고 내용은 "DriverDownloadIDNotFound"
+    # 같은 실패 메시지를 담는 경우를 명시적으로 감지한다. pfid가 무효화된 경우에
+    # 해당하며, 이 때 기존 정적 manifest 버전을 그대로 유지하는 것이 안전하다.
+    first_info = (ids[0].get("downloadInfo") or {}) if ids else {}
+    if first_info.get("Success") == "0":
+        messages = first_info.get("Messaging") or []
+        msg_codes = [m.get("MessageCode", "") for m in messages if isinstance(m, dict)]
+        logger.warning(
+            "NVIDIA API: pfid=%s 가 더 이상 유효하지 않음 (Success=0, 메시지=%s). "
+            "NVIDIA가 제품ID/API 구조를 개편한 것으로 추정. manifest 정적 버전 유지.",
+            pfid, msg_codes,
+        )
+        return None
+
     entries: list[dict] = []
     for idx, item in enumerate(ids[:2]):
         # NVIDIA API는 응답 구조가 자주 변경되므로 여러 위치에서 필드를 탐색한다.
