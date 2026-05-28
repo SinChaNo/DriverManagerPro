@@ -89,30 +89,115 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
+# Intel downloadmirror는 다운로드 페이지 방문으로 쿠키를 발급받은 뒤에만
+# .exe 직접 링크에 접근을 허용한다. 도메인별 워밍업 URL을 등록해두면
+# 첫 요청 시 자동으로 쿠키를 수집한다.
+_WARMUP_MAP: dict[str, str] = {
+    "downloadmirror.intel.com": "https://www.intel.com/content/www/us/en/download-center/home.html",
+    "download.intel.com": "https://www.intel.com/content/www/us/en/download-center/home.html",
+}
+
 
 def _build_request_headers(url: str) -> dict[str, str]:
-    """URL 도메인에 맞는 HTTP 요청 헤더를 반환한다."""
+    """URL 도메인에 맞는 HTTP 요청 헤더를 반환한다.
+
+    Intel/AMD/NVIDIA 등은 브라우저 fingerprint 일부를 검증하므로
+    Sec-Fetch-* 헤더와 Upgrade-Insecure-Requests를 포함하여 일반 브라우저와
+    유사한 요청으로 위장한다 (403 차단 우회 목적).
+    """
     domain = urlparse(url).netloc.lower()
     referer = _REFERER_MAP.get(domain, "")
     headers: dict[str, str] = {
         "User-Agent": _USER_AGENT,
-        "Accept": "*/*",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
         "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "cross-site",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
     }
     if referer:
         headers["Referer"] = referer
     return headers
 
 
-def check_connectivity(test_url: str = "https://www.google.com") -> bool:
-    if not _REQUESTS_AVAILABLE:
-        return False
+# 다운로드 세션 — 도메인별로 쿠키와 연결을 재사용하여 차단 우회 효과를 높인다.
+_session: Optional["requests.Session"] = None
+_warmed_domains: set[str] = set()
+
+
+def _get_session() -> "requests.Session":
+    """전역 다운로드 세션을 반환한다 (lazy 초기화)."""
+    global _session
+    if _session is None and _REQUESTS_AVAILABLE:
+        _session = requests.Session()
+        _session.headers.update({"User-Agent": _USER_AGENT})
+    return _session  # type: ignore[return-value]
+
+
+def _warmup_domain(domain: str) -> None:
+    """다운로드 전 도메인의 진입 페이지를 방문하여 쿠키/세션을 발급받는다.
+
+    Intel의 경우 직접 .exe URL 요청 시 403 Forbidden을 반환하지만,
+    다운로드 센터 메인을 먼저 방문하면 후속 요청에 필요한 쿠키가 세팅된다.
+    한 세션 내에서 도메인 당 1회만 수행한다.
+    """
+    if domain in _warmed_domains:
+        return
+    warmup_url = _WARMUP_MAP.get(domain)
+    if not warmup_url:
+        _warmed_domains.add(domain)
+        return
+    session = _get_session()
+    if session is None:
+        return
     try:
-        resp = requests.get(test_url, timeout=5)
-        return resp.status_code < 400
-    except Exception:
+        # 워밍업 요청에는 일반 페이지 헤더 사용 (referer 없이 진입)
+        warm_headers = {k: v for k, v in _build_request_headers(warmup_url).items() if k != "Referer"}
+        warm_headers["Sec-Fetch-Site"] = "none"
+        resp = session.get(warmup_url, headers=warm_headers, timeout=15)
+        logger.info("도메인 워밍업: %s → HTTP %s (쿠키 %d개 수집)",
+                    domain, resp.status_code, len(session.cookies))
+    except Exception as exc:
+        logger.warning("도메인 워밍업 실패 (%s): %s", domain, exc)
+    _warmed_domains.add(domain)
+
+
+def check_connectivity(test_url: str = "https://www.google.com") -> bool:
+    """네트워크 연결 가능 여부를 확인한다.
+
+    test_url 단일 실패가 네트워크 단절을 의미하지 않으므로, 실패 시 백업
+    엔드포인트(Cloudflare, NVIDIA)를 순차 시도하여 false-negative를 줄인다.
+    PyInstaller로 패키징된 EXE의 워커 스레드에서 SSL 컨텍스트 초기화가
+    지연되어 첫 요청이 실패하는 경우도 흔하므로 다중 시도가 효과적이다.
+    """
+    if not _REQUESTS_AVAILABLE:
+        logger.error("연결 확인: requests 모듈을 사용할 수 없습니다")
         return False
+
+    # 1차: 사용자 지정/기본 URL, 2차: Cloudflare 1.1.1.1, 3차: NVIDIA CDN
+    candidates = [test_url, "https://1.1.1.1", "https://us.download.nvidia.com"]
+    last_error: str = ""
+    for url in candidates:
+        try:
+            resp = requests.get(url, timeout=5)
+            if resp.status_code < 400:
+                logger.info("연결 확인 OK: %s (HTTP %s)", url, resp.status_code)
+                return True
+            last_error = f"HTTP {resp.status_code}"
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("연결 확인 실패 (%s): %s", url, last_error)
+            continue
+
+    logger.error("연결 확인: 모든 후보 URL 실패, 마지막 오류=%s", last_error)
+    return False
 
 
 def fetch_remote_manifest(url: str) -> Optional[dict]:
@@ -155,8 +240,18 @@ def _download_file(
         return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
+        domain = urlparse(url).netloc.lower()
+        # 도메인별 사전 방문으로 쿠키/세션을 발급받아 403 차단을 우회한다.
+        _warmup_domain(domain)
+        session = _get_session()
         headers = _build_request_headers(url)
-        with requests.get(url, stream=True, timeout=120, headers=headers) as resp:
+        # 실제 파일 다운로드 요청은 same-origin navigation처럼 보이도록 헤더 조정
+        headers["Sec-Fetch-Site"] = "same-site"
+        headers["Sec-Fetch-Mode"] = "no-cors"
+        headers["Sec-Fetch-Dest"] = "empty"
+        headers["Accept"] = "*/*"
+
+        with session.get(url, stream=True, timeout=120, headers=headers, allow_redirects=True) as resp:
             resp.raise_for_status()
             total = int(resp.headers.get("content-length", 0))
             downloaded = 0
@@ -357,10 +452,21 @@ def download_driver_db(
             on_progress(get_download_state())
 
     all_ok = success_count == total
+    # 부분 성공 시 사용자에게 명확히 보여주기 위해 성공/실패 갯수 모두 표시.
+    # 실패한 파일은 벤더의 URL/접근정책 변경에 따른 것이므로 앱 사용에는 치명적이지 않다.
+    if all_ok:
+        err_msg = None
+    elif success_count > 0:
+        err_msg = f"부분 성공: {success_count}개 완료, {total - success_count}개 실패 (벤더 URL/차단 문제)"
+    else:
+        err_msg = f"전체 실패: {total}개 파일 모두 다운로드 불가"
+
     _set_state(
         active=False, phase="idle", phase_label="",
         done=True, current_file="",
-        error=None if all_ok else f"{total - success_count}개 파일 다운로드 실패",
+        downloaded_files=success_count,  # UI가 성공 갯수를 정확히 보여주도록 보정
+        total_files=total,
+        error=err_msg,
     )
     logger.info("다운로드 완료: %d/%d 성공", success_count, total)
     return all_ok

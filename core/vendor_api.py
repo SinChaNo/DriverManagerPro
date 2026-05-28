@@ -165,14 +165,40 @@ def fetch_nvidia_versions(driver_id: str, current_versions: list[dict]) -> Optio
     logger.info("NVIDIA API: pfid=%s → %d개 결과 수신", pfid, len(ids))
 
     entries: list[dict] = []
-    for item in ids[:2]:
-        info = item.get("downloadInfo", {})
-        version = info.get("Version", "").strip()
-        url = info.get("DownloadURL", "").strip()
-        date_raw = info.get("ReleaseDateTime", "")
-        size_raw = info.get("Size", "0")
+    for idx, item in enumerate(ids[:2]):
+        # NVIDIA API는 응답 구조가 자주 변경되므로 여러 위치에서 필드를 탐색한다.
+        # downloadInfo 외에 항목 자체에 직접 들어있는 경우도 있음.
+        info = item.get("downloadInfo") or item or {}
+
+        # Version: Version / version / DriverVersion 등 다양한 키 시도
+        version = (
+            info.get("Version") or info.get("version")
+            or info.get("DriverVersion") or item.get("Version") or ""
+        )
+        version = str(version).strip()
+
+        # DownloadURL: DownloadURL / downloadUrl / DownloadURLFileSize 인접 위치 등
+        url = (
+            info.get("DownloadURL") or info.get("downloadUrl")
+            or info.get("Download_URL") or info.get("download_url")
+            or item.get("DownloadURL") or ""
+        )
+        url = str(url).strip()
+
+        date_raw = (
+            info.get("ReleaseDateTime") or info.get("ReleaseDate")
+            or item.get("ReleaseDateTime") or ""
+        )
+        size_raw = info.get("Size") or info.get("size") or "0"
 
         if not version or not url:
+            # 첫 항목 누락 시 응답 구조 진단용 키 목록을 로그에 남김 (1회만)
+            if idx == 0:
+                logger.warning(
+                    "NVIDIA 파싱 누락: version='%s' url='%s' info 키=%s item 키=%s",
+                    version, url[:80] if url else "",
+                    list(info.keys())[:20], list(item.keys())[:20],
+                )
             continue
 
         tag = "latest" if not entries else "previous"
@@ -185,7 +211,8 @@ def fetch_nvidia_versions(driver_id: str, current_versions: list[dict]) -> Optio
         entries.append(_make_version_entry(version, date_str, tag, path_tpl, url, size_mb))
 
     if not entries:
-        logger.warning("NVIDIA API: pfid=%s 에서 유효한 항목 없음", pfid)
+        logger.warning("NVIDIA API: pfid=%s 에서 유효한 항목 없음. 첫 항목 raw=%s",
+                       pfid, str(ids[0])[:300] if ids else "")
         return None
 
     # API가 1건만 반환 시 기존 manifest의 previous를 보존
