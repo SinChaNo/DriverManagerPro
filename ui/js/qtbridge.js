@@ -76,7 +76,10 @@
       // pywebview 호환 인터페이스 노출
       window.pywebview = { api: apiProxy };
 
-      // pywebview의 표준 준비 이벤트를 발생시켜 app.js init()을 트리거
+      // pywebview의 표준 준비 이벤트를 발생시켜 app.js init()을 트리거.
+      // app.js는 window와 document 양쪽에서 수신할 수 있으므로 양쪽 모두 디스패치한다.
+      // (new Event는 기본 bubbles=false이므로 한쪽만 디스패치하면 누락 가능)
+      window.dispatchEvent(new Event('pywebviewready'));
       document.dispatchEvent(new Event('pywebviewready'));
       console.info('[qtbridge] window.pywebview.api 준비 완료');
     });
