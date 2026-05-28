@@ -160,9 +160,10 @@ def _build_spec(mode: str, icon_path: Path, manifest_path: Path, version: str) -
 
     # PyQt6는 PyInstaller 내장 훅이 자동 처리하지만, 명시적으로 적어두면
     # 그래프 분석 누락을 방지할 수 있다. webview/clr 관련 항목은 제거.
+    # pythoncom: WMI 호출을 위해 메인 스레드에서 COM 초기화에 사용.
     hidden = [
         "wmi", "psutil", "requests", "packaging",
-        "win32api", "win32con", "win32gui", "pywintypes",
+        "win32api", "win32con", "win32gui", "pywintypes", "pythoncom",
         "PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets",
         "PyQt6.QtWebChannel",
         "PyQt6.QtWebEngineCore", "PyQt6.QtWebEngineWidgets",

@@ -12,6 +12,12 @@
                (Tailwind, Google Fonts, Material Symbols)에 접근하지 못해 UI가
                깨지던 문제 수정. LocalContentCanAccessRemoteUrls 및
                LocalContentCanAccessFileUrls 설정을 활성화.
+  2026-05-28 - API 객체를 별도 QThread로 옮긴 것이 원인으로 WMI(COM 기반)가 동작
+               하지 않아 하드웨어 스캔/시스템 요약/다운로드 등 핵심 기능이 전부
+               실패하던 문제 수정. API는 GUI 메인 스레드에 두고, 메인 스레드에서
+               COM(pythoncom.CoInitializeEx)을 명시적으로 초기화. 긴 블로킹
+               작업(scan/다운로드/설치)은 각자 내부에서 threading.Thread로
+               분리 실행하므로 GUI 응답성은 유지됨.
 """
 
 from __future__ import annotations
@@ -68,7 +74,7 @@ from core.downloader import (
 )
 from core.selfupdate import check_app_update, apply_update
 
-from PyQt6.QtCore import QObject, QThread, QUrl, pyqtSlot
+from PyQt6.QtCore import QObject, QUrl, pyqtSlot
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -138,7 +144,11 @@ class API(QObject):
     """JS ↔ Python 브릿지 객체.
 
     qtbridge.js가 `window.pywebview.api`로 노출하여 기존 app.js 호출 규약을 유지한다.
-    모든 슬롯은 별도 QThread에서 실행되어 GUI 메인 스레드를 차단하지 않는다.
+    객체는 GUI 메인 스레드에 있으므로 슬롯 실행도 메인 스레드에서 일어난다.
+    이는 WMI(COM 기반)가 메인 스레드의 COM 컨텍스트를 사용할 수 있게 하여
+    하드웨어 스캔/시스템 요약 기능이 정상 동작하도록 한다.
+    오래 걸리는 다운로드/설치 작업은 각 슬롯이 내부에서 별도 threading.Thread를
+    띄워 실행하므로 GUI 응답성은 유지된다.
     복합 반환값(dict/list)은 JSON 문자열로 직렬화하여 전달하면 JS 측에서 자동 파싱한다.
     """
 
@@ -330,6 +340,25 @@ def _icon_path() -> Path | None:
     return None
 
 
+def _init_com() -> None:
+    """메인 스레드에서 COM을 초기화한다.
+
+    wmi 모듈은 내부적으로 COM 인터페이스를 호출하므로 COM이 초기화되지 않은
+    스레드에서는 모든 쿼리가 실패한다. pywin32의 pythoncom으로 명시적으로
+    Apartment threaded(STA)로 초기화하여 WMI/COM 호출이 정상 동작하게 한다.
+
+    이미 초기화된 경우(RPC_E_CHANGED_MODE 등) 예외가 발생할 수 있으나
+    안전하게 무시한다.
+    """
+    try:
+        import pythoncom  # type: ignore
+        pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
+        logger.info("COM 초기화 완료 (STA)")
+    except Exception as exc:
+        # 이미 초기화되어 있는 경우 등에서 발생 가능 — 치명적 오류 아님
+        logger.warning("COM 초기화 경고(무시 가능): %s", exc)
+
+
 def main() -> None:
     logger.info("Driver Manager Pro starting...")
 
@@ -338,6 +367,10 @@ def main() -> None:
         logger.warning("Not running as administrator — relaunching with UAC...")
         relaunch_as_admin()
         return
+
+    # WMI 사용을 위해 메인 스레드에서 COM을 초기화한다.
+    # 이후 API의 모든 슬롯도 메인 스레드에서 실행되므로 WMI 호출이 정상 동작한다.
+    _init_com()
 
     # 최초 실행 시 번들 manifest를 쓰기 가능한 데이터 디렉토리로 복사
     _ensure_manifest()
@@ -370,11 +403,9 @@ def main() -> None:
 
     window.setCentralWidget(view)
 
-    # ── API 객체를 별도 QThread로 이동하여 GUI 차단 방지 ─────────────────────
+    # ── API 객체를 GUI 메인 스레드에 두어 WMI(COM) 호출이 정상 동작하게 한다 ─
+    # 오래 걸리는 다운로드/설치는 각 슬롯이 내부에서 threading.Thread로 분리.
     api = API()
-    api_thread = QThread()
-    api.moveToThread(api_thread)
-    api_thread.start()
 
     channel = QWebChannel(view.page())
     channel.registerObject("api", api)
@@ -387,10 +418,7 @@ def main() -> None:
     logger.info("Launching UI window...")
     window.show()
 
-    # 종료 시 워커 스레드 정리
     exit_code = qt_app.exec()
-    api_thread.quit()
-    api_thread.wait(3000)
     sys.exit(exit_code)
 
 
